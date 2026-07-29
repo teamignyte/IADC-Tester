@@ -1,6 +1,6 @@
 ---
 name: generate-selenium-tests
-description: Sync Appian Selenium tests with a Jira ticket's requirements — updates existing test files where their feature already has one, and creates new JUnit test files where it doesn't. Use when the user gives a Jira ticket key and asks to sync, update, or reconcile tests with a ticket (e.g. "sync tests for IV-201", "update the test suite for the new Isaac Sandbox requirements"). The Appian application is determined automatically from the ticket's Jira project — the user does not need to name it.
+description: Sync Appian Selenium tests with a Jira ticket's requirements — updates existing test files where their feature already has one, and creates new JUnit test files where it doesn't. Use when the user gives a Jira ticket key and asks to sync, update, or reconcile tests with a ticket (e.g. "sync tests for IV-201", "update the test suite for the new Isaac Sandbox requirements"). The Appian application is determined automatically from the ticket's Jira project — the user does not need to name it. Internally invokes the iadc-graph skill to build a dependency graph of the relevant interface(s) before pulling any SAIL source, so the SAIL trace is scoped by the actual App Graph rather than discovered ad hoc.
 argument-hint: [jira-ticket-key]
 ---
 
@@ -45,12 +45,37 @@ Steps:
    matching (initials, partial name overlap, obvious abbreviation) to
    identify the correct application. If more than one application is a
    plausible match, or none are, stop and ask which application to use
-   rather than guessing. Once the application is confirmed, use
-   listInterfaces scoped to that application's UUID. Call getInterface on the interface(s)
-   relevant to each feature identified in step 1. Read the full SAIL source
-   returned, not just field/component/label names — see
-   references/sail-tracing.md for how to trace rendered values, editability,
-   and structural/behavioral grid properties (pagination, sort order, etc.).
+   rather than guessing.
+
+   2a. **Build the dependency graph before pulling any SAIL.** Once the
+       application is confirmed, invoke the iadc-graph skill to build the
+       dependency graph for this application's relevant interface(s) —
+       follow iadc-graph's own SKILL.md for its full sequence and reference
+       files; do not skip or reorder any of it, and do not shortcut
+       straight to a query tool. The only thing this skill overrides:
+       when seeding, pass this ticket's already-resolved application UUID
+       (from above) as the `application_uuid` argument directly, rather
+       than reading it from iadc-graph's own Configuration block — that
+       block is only a fallback default for when iadc-graph is invoked
+       standalone with no UUID already in hand, which isn't the case here.
+       Once seeded, resolve each relevant interface (from listInterfaces
+       below) to a graph node and walk its dependencies (sub-interfaces,
+       rules, record types, constants) per iadc-graph's own instructions.
+       This dependency set is what guides step 2b below: it tells you
+       which objects actually need a getInterface (or equivalent) call,
+       instead of discovering references ad hoc while reading SAIL text.
+
+   2b. Use listInterfaces scoped to that application's UUID. Call
+       getInterface on the interface(s) relevant to each feature identified
+       in step 1 **and on every additional node 2a's graph identified as a
+       dependency of those interfaces** (sub-interfaces, referenced rules,
+       record types feeding grid/field values). Read the full SAIL source
+       returned, not just field/component/label names — see
+       references/sail-tracing.md for how to trace rendered values,
+       editability, and structural/behavioral grid properties (pagination,
+       sort order, etc.), using 2a's dependency list as the scope and
+       order for that trace rather than re-discovering references by
+       re-reading SAIL top to bottom.
 
 3. Search the michael-tulino/AutomatedTesting repo (via the GitHub MCP
    connector) for existing test files relevant to each feature from step 1.
