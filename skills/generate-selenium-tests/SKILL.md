@@ -1,6 +1,6 @@
 ---
 name: generate-selenium-tests
-description: Sync Appian Selenium tests with a Jira ticket's requirements — updates existing test files where their feature already has one, and creates new JUnit test files where it doesn't. Use when the user gives a Jira ticket key and asks to sync, update, or reconcile tests with a ticket (e.g. "sync tests for IV-201", "update the test suite for the new Isaac Sandbox requirements"). The Appian application is determined automatically from the ticket's Jira project — the user does not need to name it. Internally invokes the iadc-graph skill to build a dependency graph of the relevant interface(s) before pulling any SAIL source, so the SAIL trace is scoped by the actual App Graph rather than discovered ad hoc.
+description: Sync Appian Selenium tests with a Jira ticket's requirements — updates existing test files where their feature already has one, and creates new JUnit test files where it doesn't. Use when the user gives a Jira ticket key and asks to sync, update, or reconcile tests with a ticket (e.g. "sync tests for IV-201", "update the test suite for the new Isaac Sandbox requirements"). The Appian application is read from this project's own configuration, not resolved from the ticket — the user does not need to name it. Internally invokes the iadc-graph skill to build a dependency graph of the relevant interface(s) before pulling any SAIL source, so the SAIL trace is scoped by the actual App Graph rather than discovered ad hoc.
 argument-hint: [jira-ticket-key]
 ---
 
@@ -18,11 +18,7 @@ straightforward new-test generation.
 
 Steps:
 
-1. Pull the acceptance criteria for $1 via the Atlassian MCP connector. As
-   part of this same lookup, also retrieve the ticket's Jira project (key and
-   name) — this identifies which board/application area the ticket belongs
-   to, and is used in step 2 to resolve the Appian application without the
-   user needing to name it.
+1. Pull the acceptance criteria for $1 via the Atlassian MCP connector.
    Group the acceptance criteria into features, where a feature is a single application +
    workflow/action combination (e.g. "Add Rule in the Isaac Sandbox
    application," "Update Rule in the Isaac Sandbox application"). All
@@ -36,43 +32,33 @@ Steps:
    field/button/component's presence or absence, see references/sail-tracing.md
    for how that differs from a requirement that only implies existence.
 
-2. Use listApplications to get the full list of Appian applications, then
-   determine which application the ticket's Jira project (from step 1)
-   corresponds to. The Jira project name may be an abbreviation or partial
-   match of the actual Appian application name (e.g., a Jira project called
-   "IADC v2" may correspond to an Appian application named "Ignyte Appian
-   Developer Copilot") — do not assume an exact string match. Use reasonable
-   matching (initials, partial name overlap, obvious abbreviation) to
-   identify the correct application. If more than one application is a
-   plausible match, or none are, stop and ask which application to use
-   rather than guessing.
+2. Read the application UUID from this project's own configuration,
+   `docs/agents/tester.md`.
 
    2a. **Build the dependency graph before pulling any SAIL.** Once the
-       application is confirmed, invoke the `iadc-graph:iadc-graph` skill
+       application UUID is in hand, invoke the `iadc-graph:iadc-graph` skill
        (the doubled name is correct — it is the skill `iadc-graph` inside
        the plugin `iadc-graph`) to build the
        dependency graph for this application's relevant interface(s) —
        follow iadc-graph's own SKILL.md for its full sequence and reference
        files; do not skip or reorder any of it, and do not shortcut
        straight to a query tool. The only thing this skill overrides:
-       when seeding, pass this ticket's already-resolved application UUID
-       (from above) as the `application_uuid` argument directly, rather
-       than reading it from iadc-graph's own Configuration block — that
-       block is only a fallback default for when iadc-graph is invoked
-       standalone with no UUID already in hand, which isn't the case here.
-       Once seeded, resolve each relevant interface (from listInterfaces
-       below) to a graph node and walk its dependencies (sub-interfaces,
-       rules, record types, constants) per iadc-graph's own instructions.
-       This dependency set is what guides step 2b below: it tells you
-       which objects actually need a getInterface (or equivalent) call,
-       instead of discovering references ad hoc while reading SAIL text.
+       when seeding, pass this project's application UUID (from step 2) as
+       the `application_uuid` argument directly.
+       Once seeded, resolve each relevant interface (from `list_nodes`/
+       `find_nodes` below) to a graph node and walk its dependencies
+       (sub-interfaces, rules, record types, constants) per iadc-graph's
+       own instructions. This dependency set is what guides step 2b below:
+       it tells you which objects actually need a `get_sail` call, instead
+       of discovering references ad hoc while reading SAIL text.
 
-   2b. Use listInterfaces scoped to that application's UUID. Call
-       getInterface on the interface(s) relevant to each feature identified
-       in step 1 **and on every additional node 2a's graph identified as a
-       dependency of those interfaces** (sub-interfaces, referenced rules,
-       record types feeding grid/field values). Read the full SAIL source
-       returned, not just field/component/label names — see
+   2b. Use `list_nodes`/`find_nodes` against the session seeded in 2a to
+       locate the interface(s) relevant to each feature identified in step
+       1, then call `get_sail` on each of those nodes **and on every
+       additional node 2a's graph identified as a dependency of those
+       interfaces** (sub-interfaces, referenced rules, record types feeding
+       grid/field values). Read the full SAIL source returned, not just
+       field/component/label names — see
        references/sail-tracing.md for how to trace rendered values,
        editability, and structural/behavioral grid properties (pagination,
        sort order, etc.), using 2a's dependency list as the scope and

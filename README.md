@@ -11,7 +11,8 @@ You give it a ticket key; it works out the rest.
 /generate-selenium-tests IV-201
 ```
 
-The Appian application under test is resolved from the ticket's Jira project — you don't name it.
+The Appian application under test comes from this project's own configuration
+(`docs/agents/tester.md`) — you don't name it.
 Before pulling any SAIL, the skill builds a dependency graph of the relevant interfaces through the
 **`iadc-graph`** skill, so the SAIL trace is scoped by the actual App Graph rather than discovered
 ad hoc.
