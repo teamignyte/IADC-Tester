@@ -162,8 +162,7 @@ Steps:
        substitute, guess, or invent alternatives regardless of what the
        ticket or application name might suggest:
        - `TEST_SITE_URL = "https://ignytedemo.appiancloud.com/suite"`
-       - `IADC_SITE_URL = ignyte-appian-developer-copilo` (used for
-         navigation once signed in, via `navigateToSite`).
+       - `IADC_SITE_URL = ` You need to fill this in with the correct url extention (used for navigation once signed in, via `navigateToSite`).
        - `TEST_USERNAME = "automated.tester"` (the only username confirmed
          to have a matching entry in `users.properties`).
        - `TEST_BROWSER = "CHROME"`, `TEST_SITE_VERSION = "24.3"`,
@@ -240,3 +239,4 @@ Constraints:
   steps 1 and 3 — do not modify unrelated test files while in the repo.
 - Every generated or edited file must be a JUnit 5 test class
   (`org.junit.jupiter.api.*`), not a `main`-method-based script.
+- Do not use the chrome extension
