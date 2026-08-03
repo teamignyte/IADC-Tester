@@ -39,14 +39,22 @@ which is the sha pin, so every consumer moves together when that pin moves. See 
 [ADR 0003](https://github.com/teamignyte/IADC/blob/main/docs/adr/0003-shared-skills-ship-as-pinned-marketplace-plugins.md)
 and [ADR 0008](https://github.com/teamignyte/IADC/blob/main/docs/adr/0008-tester-ships-as-its-own-plugin-with-a-bundle.md).
 
-## Not installable yet
+## Installing
 
-`IADC-Marketplace` does not exist, so nothing lists this plugin and `iadc-graph` is not yet
-published as one. Until both land, the `dependencies` entry cannot resolve and this repo is a
-plugin in shape only.
+This plugin is listed in the `ignyte` catalog and is installed from there, not from this repo:
 
-One open item for that work: plugin skills are namespaced `plugin:skill`, so the address the
-`generate-selenium-tests` skill uses to reach the graph skill changes once `iadc-graph` ships as a
-plugin. A stale reference fails **silently** rather than erroring, so the address should be
-confirmed against a real install rather than assumed — which is why the skill's prose is left
-untouched here.
+```bash
+claude plugin marketplace add https://github.com/teamignyte/IADC-Marketplace.git --scope project
+claude plugin install iadc-tester@ignyte --scope project
+```
+
+`iadc-graph` comes with it. To get the advisory architect as well, install `iadc@ignyte`, the
+bundle that pulls in both products.
+
+## Addressing the graph skill
+
+Plugin skills are namespaced `plugin:skill`, so this skill reaches the graph as
+**`iadc-graph:iadc-graph`** — the skill `iadc-graph` inside the plugin of the same name. The
+doubled name is correct, not a typo. It matters because a stale cross-skill reference **fails
+silently**: Claude looks for a skill that isn't there, finds nothing, and carries on without the
+graph rather than raising an error.
