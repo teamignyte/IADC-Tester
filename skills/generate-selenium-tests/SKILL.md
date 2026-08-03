@@ -48,7 +48,9 @@ Steps:
    rather than guessing.
 
    2a. **Build the dependency graph before pulling any SAIL.** Once the
-       application is confirmed, invoke the iadc-graph skill to build the
+       application is confirmed, invoke the `iadc-graph:iadc-graph` skill
+       (the doubled name is correct — it is the skill `iadc-graph` inside
+       the plugin `iadc-graph`) to build the
        dependency graph for this application's relevant interface(s) —
        follow iadc-graph's own SKILL.md for its full sequence and reference
        files; do not skip or reorder any of it, and do not shortcut
