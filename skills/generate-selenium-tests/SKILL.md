@@ -45,19 +45,24 @@ Steps:
        straight to a query tool. The only thing this skill overrides:
        when seeding, pass this project's application UUID (from step 2) as
        the `application_uuid` argument directly.
-       Once seeded, resolve each relevant interface (from `list_nodes`/
-       `find_nodes` below) to a graph node and walk its dependencies
+       Once seeded, use `list_nodes` — the structural-filter tool, and the
+       direct replacement for the old `listInterfaces` call — to resolve
+       the interface(s) relevant to each feature identified in step 1 to
+       their graph nodes (`find_nodes` is iadc-graph's other discovery
+       tool, for locating one already-named node by search — not what this
+       enumeration needs). From there, walk each interface's dependencies
        (sub-interfaces, rules, record types, constants) per iadc-graph's
-       own instructions. This dependency set is what guides step 2b below:
-       it tells you which objects actually need a `get_sail` call, instead
-       of discovering references ad hoc while reading SAIL text.
+       own instructions. This dependency set is what step 2b reads SAIL
+       for.
 
-   2b. Use `list_nodes`/`find_nodes` against the session seeded in 2a to
-       locate the interface(s) relevant to each feature identified in step
-       1, then call `get_sail` on each of those nodes **and on every
-       additional node 2a's graph identified as a dependency of those
-       interfaces** (sub-interfaces, referenced rules, record types feeding
-       grid/field values). Read the full SAIL source returned, not just
+   2b. Read SAIL for every node in 2a's dependency set: `get_sail` for the
+       interface(s), sub-interfaces, rules, and constants — a constant's
+       own SAIL is typically empty, which is a real, expected answer there,
+       not a failure. For a record type, use `record_model` instead: what a
+       grid or field actually draws its values from is that record type's
+       fields, views, actions and relationships, and `record_model` is the
+       one-call read for exactly that substructure — `get_sail` doesn't
+       return it. Read the full SAIL source returned, not just
        field/component/label names — see
        references/sail-tracing.md for how to trace rendered values,
        editability, and structural/behavioral grid properties (pagination,

@@ -56,8 +56,12 @@ the family already uses: one repo per Appian application, so one UUID.
 - **A Tester-only client repo holds no Appian credentials at all** — only a graph URL and its API
   key, written by `iadc-graph:setup` (family
   [ADR 0010](https://github.com/teamignyte/IADC/blob/main/docs/adr/0010-graph-plugin-owns-graph-configuration.md)).
-- **The skill becomes runnable unattended.** Deleting the heuristic-matching block removes its
-  stop-and-ask branch, which was the only thing in the resolution path that required a human.
+- **Application resolution becomes runnable unattended.** Deleting the heuristic-matching block
+  removes its stop-and-ask branch, which was the only thing in the resolution path that required a
+  human. That does not make the whole skill container-ready: step 2 still reads a value from a repo
+  file (`docs/agents/tester.md`), and steps 1, 3, 4 and 8 still call the interactively-authenticated
+  Atlassian and GitHub connectors — closing that gap is IV-365's environment-variable tier, not this
+  ticket's.
 - **SAIL now comes from the seeded export, not the live object.** The skill seeds fresh on every
   run, so the window is small — but it is not zero, and a design object edited mid-run will not be
   reflected. `report_changes` exists for the case where that matters.
