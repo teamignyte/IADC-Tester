@@ -24,10 +24,9 @@ files in that repo, and a missing value can be asked for.
 The plugin running server-side in the Appian-initiated pipeline, seeded into a container image at
 build time. There is **no user to ask** and possibly no repo to read, so every value must be
 resolvable from the environment. This plugin ships no session hook and carries no
-**advisory posture** — neither is a consequence of running here specifically. The family allows at
-most one session hook across all its plugins, and Advisor already holds it (`ADR 0009`);
-separately, writing code is this plugin's whole purpose, the opposite of what that posture means
-(`ADR 0008`).
+**Advisory posture** — neither is a consequence of running here specifically. The family's one
+config-injecting session hook is Advisor's (`ADR 0009`); separately, writing code is this plugin's
+whole purpose, the opposite of what that posture means (`ADR 0008`).
 
 ### The Selenium harness
 
