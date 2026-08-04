@@ -51,11 +51,11 @@ family's per-project-state convention.
 The API reference carried inside the **Test harness**. It is the *authority* on whether a fixture
 method exists: a method is confirmed against the Javadoc, never assumed from a plausible name. This
 is the reason the harness must be present to *generate* tests — since IV-368, no longer to compile
-or run them.
+them.
 
 **Test project folder**:
 The fixed path inside the **Test repo** where generated tests are pushed to compile:
-`src/test/java/autogen`, matching the `package autogen;` every generated file declares — Gradle's
+`src/test/java/autogen/`, matching the `package autogen;` every generated file declares — Gradle's
 `java` plugin default test source set, plus the package statement. Established once by
 `/iadc-tester:setup`'s build file (IV-368), not asked as a per-project question, and **not
 per-project state at all**: every **Test repo** gets the same answer, independent of wherever

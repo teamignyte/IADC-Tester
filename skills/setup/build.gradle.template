@@ -5,8 +5,14 @@
 // dependency (IV-368).
 //
 //   Source:  https://gitlab.com/appian-oss/appian-selenium-api (Apache License 2.0)
-//   Pinned:  FCS/20260725
+//   Pinned:  FCS/20260725 -- 367,045 bytes, sha256
+//            80dcc7560f026aba27bc74de5a242eef4d1e80e5350e465e91a83aa55cdcece8
 //   URL:     https://gitlab.com/api/v4/projects/appian-oss%2Fappian-selenium-api/packages/generic/FCS/20260725/appian-selenium-api.jar
+//
+// A maintainer moving to a newer release must update the version in the URL above AND both the
+// size and sha256 -- /iadc-tester:setup's step 4 checks the committed jar against these numbers,
+// not just its presence, so a stale jar in an existing Test repo gets replaced on the next setup
+// run instead of silently kept forever.
 //
 // Generated tests declare `package autogen;` and must live under src/test/java/autogen/ to
 // compile against it -- Gradle's `java` plugin defaults its test source set to src/test/java, so
@@ -20,15 +26,24 @@
 // Everything here is `testImplementation`, not `implementation`: this repo has no src/main/java --
 // every generated file is a test under src/test/java/autogen/ -- so nothing is ever compiled
 // outside the test source set.
+//
+// sourceCompatibility/targetCompatibility below, not a toolchain block: this compiles on any JDK
+// 11 or newer already installed locally -- Selenium 4.13 sets that same floor -- with no toolchain
+// auto-provisioning and no network needed just to obtain a matching JDK. mavenCentral() below still
+// needs network on a cold dependency cache; that was never what this ticket removed, only the
+// Appian jar's manual download was.
+//
+// To build: `gradle test` from this directory compiles and runs everything under
+// src/test/java/autogen/. Requires a JDK 11+ and Gradle itself installed locally -- this repo
+// ships no wrapper. `gradle compileTestJava` checks compiling alone, with no live site needed.
 
 plugins {
     id 'java'
 }
 
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(11)
-    }
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
 }
 
 repositories {

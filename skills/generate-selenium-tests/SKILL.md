@@ -257,7 +257,11 @@ Steps:
    a Gradle build there whose default test source set is `src/test/java`; every generated
    file's own `package autogen;` (step 6) supplies the rest of the path, so this is where it
    must land to compile. Push each file individually so an edited file updates its existing
-   repo entry rather than creating a duplicate.
+   repo entry rather than creating a duplicate — true once `/iadc-tester:setup`'s own step 4
+   has relocated any file this plugin generated before IV-368 out of the Test repo's root. Until
+   that has run against this Test repo, a root-level file step 3 matched by content and this step
+   then pushes here lands as a second copy, not an update — the same feature in two places, not a
+   duplicate feature — and both copies need reconciling by hand.
 
 Constraints:
 - Do not run the tests.
