@@ -163,8 +163,8 @@ straight to the root-level check below. Otherwise, fill in whatever's missing or
   dependency versions inside are measured against the vendor's own build of this exact jar, not
   guessed; changing them here would silently drop that guarantee.
 
-**Then, regardless of whether either check above found anything to do, list the Test repo's root**
-for `.java` files sitting directly there. Nothing before this ticket ever pushed a file anywhere
+**Then, regardless of whether either check above found anything to do, list the Test repo's root
+on the Branch** for `.java` files sitting directly there. Nothing before this ticket ever pushed a file anywhere
 else in this repo, so each is presumed to be a test this plugin generated before IV-368 and is now
 silently excluded from the build for the reason above — but confirm that from its content rather
 than deleting on the presumption alone. For each:

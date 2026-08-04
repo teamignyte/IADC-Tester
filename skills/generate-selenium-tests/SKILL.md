@@ -109,7 +109,7 @@ Steps:
    when neither config file exists — pushing now would still land files that can't compile, the
    exact defect IV-368 exists to fix.
 
-   Search the Test repo resolved in step 0 (via the GitHub MCP
+   Search the Test repo resolved in step 0, on the Branch resolved in step 0 (via the GitHub MCP
    connector) for existing test files relevant to each feature from step 1.
    Match by content, not just filename — a file's class name, business-
    description comment, and existing `@Test` methods are more reliable
@@ -132,7 +132,7 @@ Steps:
    whole ticket.
 
 4. For every existing file identified as a target in step 3, pull it into the
-   current directory (via the GitHub MCP connector's file-read/download
+   current directory, on the Branch resolved in step 0 (via the GitHub MCP connector's file-read/download
    tool) and read it in full before making any edit. Do not edit a file you
    have not fully read. Make sure the file is saved in the current directory before moving on.
 
