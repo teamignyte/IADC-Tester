@@ -6,9 +6,6 @@ argument-hint: [jira-ticket-key]
 
 $1 is the Jira ticket
 
-Repo: michael-tulino/AutomatedTesting
-Branch: main
-
 This skill reconciles a Jira ticket's requirements against the existing test
 suite: matching requirements get left alone, new non-conflicting requirements
 get added to an existing file, conflicting requirements get the minimal
@@ -17,6 +14,29 @@ file — all following the same JUnit 5 / Appian Selenium API conventions as
 straightforward new-test generation.
 
 Steps:
+
+0. Resolve this project's configuration before doing anything else. Every value below
+   resolves the same way — environment variable, then `docs/agents/tester.md` (or
+   `docs/agents/tester.local.md` for the one machine-specific value), then ask the user —
+   per the family's per-project-state convention. A placeholder left standing in either
+   file (`<...>`) means the value is genuinely unset; ask rather than guess. If neither
+   file exists yet, tell the user to run `/iadc-tester:setup` first.
+
+   - **Application UUID** — env `TEST_APPLICATION_UUID`, then `tester.md`.
+   - **Test repo** — env `TEST_REPO`, then `tester.md`. The GitHub repository holding the
+     generated test files.
+   - **Branch** — env `TEST_BRANCH`, then `tester.md`. The branch in the Test repo that
+     generated files are pushed to.
+   - **Test site URL** — env `TEST_SITE_URL`, then `tester.md`.
+   - **Site web address** — env `IADC_SITE_URL`, then `tester.md`. The site's internal
+     web address, used for `navigateToSite` once signed in.
+   - **Test username** — env `TEST_USERNAME`, then `tester.md`.
+   - **Site version** — env `TEST_SITE_VERSION`, then `tester.md`.
+   - **Harness path** — env `TEST_HARNESS_PATH`, then `tester.local.md` (this one is
+     machine-specific, not `tester.md`). The absolute filesystem path to the extracted
+     Appian Selenium API distribution.
+
+   `TEST_BROWSER`, `TEST_SITE_LOCALE` and `TEST_TIMEOUT` are not per-client — see step 6.
 
 1. Pull the acceptance criteria for $1 via the Atlassian MCP connector.
    Group the acceptance criteria into features, where a feature is a single application +
@@ -32,8 +52,7 @@ Steps:
    field/button/component's presence or absence, see references/sail-tracing.md
    for how that differs from a requirement that only implies existence.
 
-2. Read the application UUID from this project's own configuration,
-   `docs/agents/tester.md`.
+2. Use the application UUID resolved in step 0.
 
    2a. **Build the dependency graph before pulling any SAIL.** Once the
        application UUID is in hand, invoke the `iadc-graph:iadc-graph` skill
@@ -43,7 +62,7 @@ Steps:
        follow iadc-graph's own SKILL.md for its full sequence and reference
        files; do not skip or reorder any of it, and do not shortcut
        straight to a query tool. The only thing this skill overrides:
-       when seeding, pass this project's application UUID (from step 2) as
+       when seeding, pass this project's application UUID (from step 0) as
        the `application_uuid` argument directly.
        Once seeded, use `list_nodes` — the structural-filter tool, and the
        direct replacement for the old `listInterfaces` call — to resolve
@@ -70,7 +89,7 @@ Steps:
        order for that trace rather than re-discovering references by
        re-reading SAIL top to bottom.
 
-3. Search the michael-tulino/AutomatedTesting repo (via the GitHub MCP
+3. Search the Test repo resolved in step 0 (via the GitHub MCP
    connector) for existing test files relevant to each feature from step 1.
    Match by content, not just filename — a file's class name, business-
    description comment, and existing `@Test` methods are more reliable
@@ -138,10 +157,9 @@ Steps:
    process as generating a test from scratch:
      - Create the empty file as (testname/description).java in the current
        directory, named to match its public class.
-     - Read the Appian Selenium API reference materials at
-       C:\Users\tulin\Downloads\Ignyte\Appian Selenium API Combined Files 5302025
-       — the ExampleProjects\appian-selenium-api-example-java folder for
-       usage patterns, and the Javadoc\ folder for the full list of
+     - Read the Appian Selenium API reference materials at the Harness path
+       resolved in step 0 — the ExampleProjects\appian-selenium-api-example-java
+       folder for usage patterns, and the Javadoc\ folder for the full list of
        available methods. Confirm methods against the Javadoc rather than
        assuming; confirm whether the fixture exposes an editability check —
        see references/field-editability.md.
@@ -149,16 +167,18 @@ Steps:
        fixture;` field, a `@BeforeAll` static setup method (construct,
        configure, log in), an `@AfterAll` static teardown method
        (`fixture.tearDown()`). No `main` method, no manual try/finally.
-     - Always use these exact values for the setup constants — do not
+     - Use the values resolved in step 0 for these setup constants — do not
        substitute, guess, or invent alternatives regardless of what the
        ticket or application name might suggest:
-       - `TEST_SITE_URL = "https://ignytedemo.appiancloud.com/suite"`
-       - `IADC_SITE_URL = ignyte-appian-developer-copilo` (used for
+       - `TEST_SITE_URL` — the Test site URL.
+       - `IADC_SITE_URL` — the Site web address (used for
          navigation once signed in, via `navigateToSite`).
-       - `TEST_USERNAME = "automated.tester"` (the only username confirmed
+       - `TEST_USERNAME` — the Test username (the only username confirmed
          to have a matching entry in `users.properties`).
-       - `TEST_BROWSER = "CHROME"`, `TEST_SITE_VERSION = "24.3"`,
-         `TEST_SITE_LOCALE = "en_US"`, `TEST_TIMEOUT = 60`.
+       - `TEST_SITE_VERSION` — the Site version.
+
+       These three are not per-client — always use exactly these values:
+       `TEST_BROWSER = "CHROME"`, `TEST_SITE_LOCALE = "en_US"`, `TEST_TIMEOUT = 60`.
      - Group related criteria into one `@Test` method where they verify the
        same underlying save/output; only split into separate `@Test`
        methods for genuinely distinct behaviors or outcomes.
@@ -219,7 +239,7 @@ Steps:
    as it was pulled in step 4.
 
 8. Save each file (new or edited) then push it to the root of
-   michael-tulino/AutomatedTesting on the main branch, using the GitHub MCP
+   the Test repo resolved in step 0, on the Branch resolved in step 0, using the GitHub MCP
    server's file creation/update tool. Push each file individually so an
    edited file updates its existing repo entry rather than creating a
    duplicate.
