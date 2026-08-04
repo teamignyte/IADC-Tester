@@ -99,7 +99,16 @@ Steps:
        order for that trace rather than re-discovering references by
        re-reading SAIL top to bottom.
 
-3. Search the Test repo resolved in step 0 (via the GitHub MCP
+3. Before searching, confirm this Test repo is actually ready to compile what this skill is about
+   to push: check whether `build.gradle` exists at its root (via the GitHub MCP connector's
+   file-read tool). If it doesn't, this Test repo hasn't been through `/iadc-tester:setup`'s build
+   establishment (its step 4) — including a Test repo this plugin pushed tests into before IV-368,
+   which may still hold root-level `.java` files that this skill's own `src/test/java/autogen/`
+   layout (step 8) excludes from the build. Stop here and tell the user to run `/iadc-tester:setup`
+   first, the same way step 0 above already does when neither config file exists — pushing now
+   would still land files that can't compile, the exact defect IV-368 exists to fix.
+
+   Search the Test repo resolved in step 0 (via the GitHub MCP
    connector) for existing test files relevant to each feature from step 1.
    Match by content, not just filename — a file's class name, business-
    description comment, and existing `@Test` methods are more reliable

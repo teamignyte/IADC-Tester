@@ -135,13 +135,14 @@ straight to the root-level check below. Otherwise, fill in whatever's missing or
   This URL needs **no authentication** — it's a public package on a public project. **Pinned:
   `FCS/20260725`, `367,045` bytes, sha256
   `80dcc7560f026aba27bc74de5a242eef4d1e80e5350e465e91a83aa55cdcece8`.** A maintainer moving to a
-  newer release edits the version in the URL *and both numbers* — here and in
-  `build.gradle.template`'s header comment — the same lag-never-lead pinning the family already
-  uses for the mirrored graph skill (never track "latest"). Bumping only the URL and leaving these
-  numbers stale would defeat the check above: matching size/hash is what lets an existing Test
-  repo's *next* setup run notice its jar is now stale and replace it, instead of seeing a
-  same-named file and skipping forever. Push the downloaded file to
-  `lib/appian/appian-selenium-api.jar` in the Test repo with the GitHub MCP connector's file
+  newer release edits the version in the URL *and every place the size and sha256 are repeated* —
+  the pin statement here, the confirm-after-push instruction later in this same bullet, step 8's
+  Verify check, and `build.gradle.template`'s header comment — the same lag-never-lead pinning the
+  family already uses for the mirrored graph skill (never track "latest"). Missing any one of them
+  would defeat the check above: matching size/hash is what lets an existing Test repo's *next* setup
+  run notice its jar is now stale and replace it, instead of either a stale number passing against
+  itself or a correctly-updated jar failing a check that never got updated. Push the downloaded file
+  to `lib/appian/appian-selenium-api.jar` in the Test repo with the GitHub MCP connector's file
   creation/update tool.
 
   **This is a committed binary, deliberately.** The alternative — a developer downloading it by
@@ -163,12 +164,21 @@ straight to the root-level check below. Otherwise, fill in whatever's missing or
   guessed; changing them here would silently drop that guarantee.
 
 **Then, regardless of whether either check above found anything to do, list the Test repo's root**
-for `.java` files sitting directly there. Every one is a test this plugin generated before IV-368 —
-nothing before this ticket ever put one anywhere else — and every one is now silently excluded from
-the build for the reason above. For each:
+for `.java` files sitting directly there. Nothing before this ticket ever pushed a file anywhere
+else in this repo, so each is presumed to be a test this plugin generated before IV-368 and is now
+silently excluded from the build for the reason above — but confirm that from its content rather
+than deleting on the presumption alone. For each:
   - Read its content (GitHub MCP file-read tool).
-  - If its first line isn't already `package autogen;`, add it — the file needs this to belong
-    under `src/test/java/autogen/` at all.
+  - Confirm it actually looks like one of this plugin's own generated tests — it imports
+    `com.appiancorp.ps.automatedtest.fixture.SitesFixture`, or already declares `package autogen;`
+    somewhere in it — before treating it as safe to migrate. If it matches neither signal, it isn't
+    one of ours: leave it in place and list it in step 7's review instead of moving it.
+  - If it doesn't already declare `package autogen;` before its first type declaration — check the
+    file's content, not just whether line 1 is exactly that string; a file whose first line is the
+    business-description comment `generate-selenium-tests` step 3 matches on still declares
+    `package autogen;` on the line beneath it — prepend `package autogen;` as a new first line.
+    Skip this for a file that already declares it anywhere; prepending regardless would write a
+    second, uncompilable package declaration.
   - Push that content to `src/test/java/autogen/` under the same filename, via the GitHub MCP
     connector's file creation/update tool, then remove the root copy with its file-delete tool.
   - If no delete tool is available, don't leave this silent: list the file in step 7's review as
@@ -231,8 +241,9 @@ call setup done:
 - **The Test repo's build** — `lib/appian/appian-selenium-api.jar`, `build.gradle` and
   `settings.gradle`: freshly written, already present from an earlier run, or replaced because the
   jar didn't match the pinned size/hash.
-- **Root-level `.java` files** — every one found and moved into `src/test/java/autogen/`, and any
-  that couldn't be removed automatically and still need deleting by hand.
+- **Root-level `.java` files** — every one found and moved into `src/test/java/autogen/`; any that
+  couldn't be removed automatically and still need deleting by hand; and any left in place because
+  they didn't match the generated-test signal.
 - **The `iadc` handoff** — told to the user (always), noting whether step 1 already saw a
   live-looking entry.
 
@@ -247,8 +258,9 @@ call setup done:
   exist at the Test repo's root on the Branch, and that `lib/appian/appian-selenium-api.jar` exists
   there at `367,045` bytes — step 4 claiming to have written or found them isn't the same as them
   being there, and existence alone would miss a binary corrupted in transit.
-- Confirm no `.java` file remains at the Test repo's root — either moved in step 4 or listed in
-  step 7 as needing manual removal, not silently left behind.
+- Confirm no `.java` file remains at the Test repo's root unless step 7 already accounts for it —
+  moved in step 4, listed there as needing manual removal, or listed there as left in place because
+  it didn't match the generated-test signal, not silently unaccounted for.
 - Remind the user to run `/iadc-graph:setup` if they haven't yet — step 6 already told them once;
   repeat it here since this is close to the last thing they read. Don't call `generate-selenium-tests`
   ready to use: it also needs the Atlassian and GitHub connectors, which this skill neither
@@ -261,4 +273,5 @@ Tell the user setup is complete, and how to use what step 4 just established: `g
 the Test repo's root compiles and runs everything under `src/test/java/autogen/` (a JDK 11+ and
 Gradle itself must be installed locally — no wrapper is shipped). They can edit
 `docs/agents/tester.md`, `docs/agents/tester.local.md`, and the Test repo's `build.gradle` directly
-later — re-run this skill only to re-point the plugin at a different Appian project.
+later — re-run this skill to re-point the plugin at a different Appian project, or whenever
+`generate-selenium-tests` reports that the Test repo hasn't been through this step yet.
