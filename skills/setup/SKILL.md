@@ -142,8 +142,8 @@ straight to the root-level check below. Otherwise, fill in whatever's missing or
   would defeat the check above: matching size/hash is what lets an existing Test repo's *next* setup
   run notice its jar is now stale and replace it, instead of either a stale number passing against
   itself or a correctly-updated jar failing a check that never got updated. Push the downloaded file
-  to `lib/appian/appian-selenium-api.jar` in the Test repo with the GitHub MCP connector's file
-  creation/update tool.
+  to `lib/appian/appian-selenium-api.jar` in the Test repo, on the Branch, with the GitHub MCP
+  connector's file creation/update tool.
 
   **This is a committed binary, deliberately.** The alternative — a developer downloading it by
   hand, onto a machine-specific path nothing else can see — is the defect IV-368 removes. Committing
@@ -158,8 +158,9 @@ straight to the root-level check below. Otherwise, fill in whatever's missing or
   way, confirm `367,045` bytes before treating this bullet as done.
 
 - **The build file.** Push `skills/setup/build.gradle.template`'s content, unedited, to
-  `build.gradle` in the Test repo, and `skills/setup/settings.gradle.template`'s content, unedited,
-  to `settings.gradle`. Copy them verbatim — don't regenerate their content from memory. The
+  `build.gradle` in the Test repo, on the Branch, and `skills/setup/settings.gradle.template`'s
+  content, unedited, to `settings.gradle`, on the Branch. Copy them verbatim — don't regenerate
+  their content from memory. The
   dependency versions inside are measured against the vendor's own build of this exact jar, not
   guessed; changing them here would silently drop that guarantee.
 

@@ -131,10 +131,11 @@ Steps:
    own target independently, rather than defaulting to a single file for the
    whole ticket.
 
-4. For every existing file identified as a target in step 3, pull it into the
-   current directory, on the Branch resolved in step 0 (via the GitHub MCP connector's file-read/download
-   tool) and read it in full before making any edit. Do not edit a file you
-   have not fully read. Make sure the file is saved in the current directory before moving on.
+4. For every existing file identified as a target in step 3, pull it from the
+   Test repo on the Branch resolved in step 0 into the current directory (via
+   the GitHub MCP connector's file-read/download tool) and read it in full
+   before making any edit. Do not edit a file you have not fully read. Make
+   sure the file is saved in the current directory before moving on.
 
 5. For each feature whose target is an existing file, reconcile the ticket's
    requirements against what the file already does. See
