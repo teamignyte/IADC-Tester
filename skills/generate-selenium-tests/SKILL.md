@@ -18,12 +18,17 @@ Steps:
 0. Resolve this project's configuration before doing anything else. Every value below
    resolves the same way — environment variable, then `docs/agents/tester.md` (or
    `docs/agents/tester.local.md` for the one machine-specific value), then ask the user —
-   per the family's per-project-state convention. A placeholder left standing in either
-   file (`<...>`) means the value is genuinely unset; ask rather than guess. If neither
-   file exists yet, tell the user to run `/iadc-tester:setup` first.
+   per the family's per-project-state convention. Check the environment variable for each
+   value **first, before touching either file**: a pipeline run may set every one of the
+   eight this way, with no repo to read and no user to ask, and that is a complete
+   resolution on its own — proceed without either file existing. Only for a value with no
+   environment variable set, read the matching file; a placeholder left standing (`<...>`)
+   means it's still unset there. Only once *both* tiers have failed for a value is it time
+   to ask the user — and only then, if neither config file exists at all, tell them to run
+   `/iadc-tester:setup` first rather than answering one field at a time.
 
    - **Application UUID** — env `TEST_APPLICATION_UUID`, then `tester.md`.
-   - **Test repo** — env `TEST_REPO`, then `tester.md`. The GitHub repository holding the
+   - **Test repo** — env `TEST_REPO`, then `tester.md`. The git repository holding the
      generated test files.
    - **Branch** — env `TEST_BRANCH`, then `tester.md`. The branch in the Test repo that
      generated files are pushed to.
@@ -63,7 +68,9 @@ Steps:
        files; do not skip or reorder any of it, and do not shortcut
        straight to a query tool. The only thing this skill overrides:
        when seeding, pass this project's application UUID (from step 0) as
-       the `application_uuid` argument directly.
+       the `application_uuid` argument directly. If seeding fails because the
+       `iadc` MCP server isn't configured yet, tell the user to run
+       `/iadc-graph:setup` — that's the fix; nothing here works around it.
        Once seeded, use `list_nodes` — the structural-filter tool, and the
        direct replacement for the old `listInterfaces` call — to resolve
        the interface(s) relevant to each feature identified in step 1 to
@@ -158,8 +165,8 @@ Steps:
      - Create the empty file as (testname/description).java in the current
        directory, named to match its public class.
      - Read the Appian Selenium API reference materials at the Harness path
-       resolved in step 0 — the ExampleProjects\appian-selenium-api-example-java
-       folder for usage patterns, and the Javadoc\ folder for the full list of
+       resolved in step 0 — the ExampleProjects/appian-selenium-api-example-java
+       folder for usage patterns, and the Javadoc/ folder for the full list of
        available methods. Confirm methods against the Javadoc rather than
        assuming; confirm whether the fixture exposes an editability check —
        see references/field-editability.md.

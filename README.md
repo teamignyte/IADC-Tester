@@ -12,7 +12,7 @@ You give it a ticket key; it works out the rest.
 ```
 
 The Appian application under test comes from this project's own configuration
-(`docs/agents/tester.md`) — you don't name it.
+(`docs/agents/tester.md`, written by `/iadc-tester:setup`) — you don't name it.
 Before pulling any SAIL, the skill builds a dependency graph of the relevant interfaces through the
 **`iadc-graph`** skill, so the SAIL trace is scoped by the actual App Graph rather than discovered
 ad hoc.
@@ -22,6 +22,7 @@ ad hoc.
 ```
 .claude-plugin/plugin.json          the manifest
 skills/generate-selenium-tests/     SKILL.md + references/
+skills/setup/                       SKILL.md + config templates
 ```
 
 `skills/` is **auto-discovered** — it is deliberately not declared in `plugin.json`. Declaring
@@ -51,6 +52,9 @@ claude plugin install iadc-tester@ignyte --scope project
 
 `iadc-graph` comes with it. To get the advisory architect as well, install `iadc@ignyte`, the
 bundle that pulls in both products.
+
+Then run `/iadc-tester:setup` once per project, before the first `/generate-selenium-tests` — it
+writes this project's configuration and hands off to `/iadc-graph:setup` for the graph connection.
 
 ## Addressing the graph skill
 

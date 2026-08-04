@@ -24,9 +24,10 @@ Read the current state; don't assume:
   re-ask a field that already carries a real answer; only ask about one still showing its `<...>`
   placeholder.
 - `.gitignore` — does it already have the `docs/agents/tester.local.md` entry?
-- `.mcp.json` — does an `iadc` entry already exist and work? Check whether tools named
-  `mcp__iadc__*` (e.g. `mcp__iadc__seed`) are available in this session — their presence means the
-  entry was already live when this session started. If so, step 5 below is already satisfied.
+- Are `mcp__iadc__*` tools (e.g. `mcp__iadc__seed`) present in this session? Their presence is
+  useful context for step 5 — it means an entry already *looks* live — but it settles nothing on
+  its own (a **tracked** `.mcp.json` can still pass this check) and it doesn't skip anything below.
+  This skill has no other reason to read `.mcp.json` itself; `iadc-graph:setup` owns that file.
 
 ### 2. Establish the ignore rule for the one per-machine value
 
@@ -34,16 +35,18 @@ Read the current state; don't assume:
 holds the Harness path, which differs per machine. **This step runs before that file is written**,
 so a `git add -A` in the gap between the two never stages it.
 
-Check whether `.gitignore` at the repo root already contains this exact line:
+Check whether `.gitignore` at the repo root already has each of these lines — check them
+independently, not as a single block; a repo that already ignores `docs/agents/tester.local.md`
+without the comment above it has the line that matters and needs nothing added:
 
 ```
 # iadc-tester per-project state — personal to this machine, never committed
 docs/agents/tester.local.md
 ```
 
-- **Already there** — nothing to add. Continue to step 3.
-- **Missing** — show the user the line and get an explicit yes before adding it. Create
-  `.gitignore` if it doesn't exist yet.
+- **Both lines already there** — nothing to add. Continue to step 3.
+- **Either line is missing** — show the user exactly which line(s) are missing and get an explicit
+  yes before adding them. Create `.gitignore` if it doesn't exist yet.
   - **Decline** — add nothing, and don't ask again this run. **Skip step 4 entirely this run
     too** — don't write `docs/agents/tester.local.md` ungitignored, which would make a
     machine-specific value trackable, the exact outcome the ignore rule exists to prevent. Say
@@ -62,9 +65,11 @@ skills are shared, read-only, and replaced on update; the family's per-project-s
 carries a real answer; only ask about one still showing its `<...>` placeholder.
 
 **Keep the template's field labels verbatim** — `Application UUID`, `Test repo` (+ `Branch`),
-`Test project folder`, `Test site URL`, `Site web address`, `Test username`, `Site version` —
-`generate-selenium-tests` matches on those exact labels; rename or reword one and the value simply
-stops being found.
+`Test site URL`, `Site web address`, `Test username`, `Site version` in `tester.md`, and
+`Harness path` in `tester.local.md` (step 4) — `generate-selenium-tests` matches on those exact
+labels; rename or reword one and the value simply stops being found. `Test project folder` needs
+the same verbatim label for whenever it gets a reader, but nothing reads it yet: IV-368 is what
+wires that in, not this skill.
 
 Fill every value **in place**, replacing the `<...>` placeholder with a real answer. Never invent a
 value, and never delete a line unless the template says to.
@@ -72,12 +77,12 @@ value, and never delete a line unless the template says to.
 - **Application UUID** — the Appian application these tests cover, and the seed target for the
   `iadc` graph. Take it from the user; this plugin doesn't configure a live Appian connection to
   look it up itself.
-- **Test repo** (+ **Branch**) — the GitHub repository, and the branch on it, that the generated
+- **Test repo** (+ **Branch**) — the git repository, and the branch on it, that the generated
   test files are pushed to.
-- **Test project folder** — where this application's generated tests must sit. Record the user's
-  answer as given. How it relates to the Harness path (step 4) is a separate, still-open question —
-  don't tell the user it sits inside or outside the harness tree; this skill only collects the
-  value.
+- **Test project folder** — where this application's generated tests must sit to compile against
+  the test harness. Record the user's answer as given. How it relates to the Harness path (step 4)
+  is a separate, still-open question — don't tell the user it sits inside or outside the harness
+  tree; this skill only collects the value.
 - **Test site URL** — the full URL used to sign in.
 - **Site web address** — the site's internal web address, used for navigation once signed in.
 - **Test username** — the Appian username these tests sign in as. Must have a matching entry in
@@ -110,10 +115,15 @@ automatically as this plugin's declared dependency, and running its own credenti
 (family ADR 0010, "the graph plugin owns graph configuration"). That skill carries
 `disable-model-invocation: true`: Claude cannot invoke it, only the user can, by typing the command.
 
-**Tell the user to run `/iadc-graph:setup`** — unless step 1 already found a working `iadc` entry
-(`mcp__iadc__*` tools present in this session), in which case say so instead and skip the ask:
-`iadc-graph:setup` also skips itself when it finds a working entry, so a user with both
-`iadc-advisor` and `iadc-tester` installed is never asked for the same URL and key twice.
+**Tell the user to run `/iadc-graph:setup`, unconditionally.** If step 1 already saw `mcp__iadc__*`
+tools present, say that too — an entry already looks live — but say it *alongside* the instruction,
+not instead of it: tool presence doesn't rule out a **tracked** `.mcp.json`, which
+`iadc-graph:setup` checks for and warns about (a committed credential is readable from git history
+even after the file is untracked) and this skill has no way to check itself, since it never reads
+that file. Say plainly that it can wait: before, during, or after this setup, in its own session,
+since nothing here depends on it. That skill never silently overwrites a working entry — a repo
+that ran an older version of this skill keeps what it already has unless the user chooses
+otherwise. This skill neither writes that entry nor waits on the other one.
 
 ### 6. Review everything this run touched
 
@@ -124,7 +134,8 @@ call setup done:
 - **`docs/agents/tester.local.md`** — written, or deliberately skipped because step 2's ignore rule
   was declined.
 - **The `.gitignore` line** — added, already present, or declined.
-- **The `iadc` handoff** — told to the user, or skipped because a working entry already exists.
+- **The `iadc` handoff** — told to the user (always), noting whether step 1 already saw a
+  live-looking entry.
 
 ### 7. Verify
 
@@ -133,8 +144,11 @@ call setup done:
 - If `docs/agents/tester.local.md` was written, confirm it's actually ignored:
   `git check-ignore docs/agents/tester.local.md` succeeds. If step 2's ignore rule was declined,
   this file was never written (step 4) — nothing to check.
-- Tell the user which command to run next — `/iadc-graph:setup`, if step 5 didn't already find a
-  working entry — and that `generate-selenium-tests` is otherwise ready to use.
+- Remind the user to run `/iadc-graph:setup` if they haven't yet — step 5 already told them once;
+  repeat it here since this is close to the last thing they read. Don't call `generate-selenium-tests`
+  ready to use: it also needs the Atlassian and GitHub connectors, which this skill neither
+  configures nor checks. Say that plainly instead of claiming a readiness this skill hasn't
+  established.
 
 ### 8. Done
 
