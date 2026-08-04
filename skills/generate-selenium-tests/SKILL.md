@@ -121,7 +121,7 @@ Steps:
        *all* of this feature's requirements go there — do not split one
        feature's requirements across multiple files.
      - If no existing file covers it → it needs a new file, created the same
-       way as steps 4-9 of a from-scratch test generation (scaffold, constants,
+       way as step 6 of a from-scratch test generation (scaffold, constants,
        `@BeforeAll`/`@AfterAll`, one or more `@Test` methods, cleanup).
    Most tickets describe a single feature and resolve entirely to one file
    (either one existing file to edit, or one new file to create). A ticket
