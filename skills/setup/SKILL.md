@@ -151,11 +151,19 @@ straight to the root-level check below. Otherwise, fill in whatever's missing or
   itself is not universally present, so on macOS use `shasum -a 256 appian-selenium-api.jar`
   instead (macOS ships Perl's `shasum`, not GNU coreutils), and on native Windows (`cmd.exe` or
   PowerShell, outside WSL) use `certutil -hashfile appian-selenium-api.jar SHA256`, which needs
-  nothing installed beyond Windows itself. **On a mismatch, stop here:** don't push the file, don't
+  nothing installed beyond Windows itself — but unlike `sha256sum`'s bare `<hash>  <file>` line,
+  `certutil` prints a labelled multi-line block (and on some older Windows builds, spaces the hex
+  into pairs), so compare only the hex digest itself, case-insensitively and with all whitespace
+  stripped, never the label lines or spacing verbatim.
+
+  **On a mismatch, stop here — the whole run, not just this bullet:** don't push the file, don't
   retry the download, and don't accept a size match as a substitute pass. Tell the user the pinned
-  sha256, the sha256 you actually computed, and that setup did not proceed. Only once the sha256
-  matches, push the downloaded file to `lib/appian/appian-selenium-api.jar` in the Test repo, on the
-  Branch, with the GitHub MCP connector's file creation/update tool.
+  sha256, the sha256 you actually computed, and that setup did not proceed, then stop: nothing else
+  in this skill runs this session, including the build file below and steps 5-9 — pushing
+  `build.gradle`/`settings.gradle` next would leave the Test repo's build pointing at a jar that was
+  never pushed, a worse state than this step never having run at all. Only once the sha256 matches,
+  push the downloaded file to `lib/appian/appian-selenium-api.jar` in the Test repo, on the Branch,
+  with the GitHub MCP connector's file creation/update tool.
 
   **This is a committed binary, deliberately.** The alternative — a developer downloading it by
   hand, onto a machine-specific path nothing else can see — is the defect IV-368 removes. Committing
@@ -164,11 +172,16 @@ straight to the root-level check below. Otherwise, fill in whatever's missing or
   at the point a Test-repo reader — who may never see this skill's prose — will actually find it.
 
   A binary written through a text/UTF-8 path comes out corrupt but still *exists*, so "the file is
-  there" doesn't confirm the push worked. Where the GitHub MCP connector's tools expose a size or
-  hash without a full download, use that; otherwise pull the content back — the same way
-  `generate-selenium-tests` step 4 already pulls existing test files — and check it locally. Either
-  way, confirm `367,045` bytes **and the sha256 pinned above** before treating this bullet as done —
-  size alone would miss a push that corrupted content without changing its length.
+  there" doesn't confirm the push worked. Where the GitHub MCP connector's tools expose a size
+  without a full download, use that for the byte count — but there is no equivalent shortcut for the
+  hash: what that connector exposes for a file's content is a git blob **SHA-1** (hashed over `blob
+  <len>\0<bytes>`), never the sha256 pinned here, so the two are never comparable. Pull the content
+  back instead — the same way `generate-selenium-tests` step 4 already pulls existing test files —
+  decode it, and hash the decoded bytes with the same command used above (`sha256sum` / `shasum -a
+  256` / `certutil -hashfile`, same normalization rule). Confirm `367,045` bytes **and that hash
+  matches the pinned sha256** before treating this bullet as done — size alone would miss a push
+  that corrupted content without changing its length, and reporting a match without having computed
+  a comparable hash is the same gap this ticket exists to close.
 
 - **The build file.** Push `skills/setup/build.gradle.template`'s content, unedited, to
   `build.gradle` in the Test repo, on the Branch, and `skills/setup/settings.gradle.template`'s
@@ -270,9 +283,12 @@ call setup done:
   this file was never written (step 5) — nothing to check.
 - With the GitHub MCP connector's file-read tool, confirm `build.gradle` and `settings.gradle`
   exist at the Test repo's root on the Branch, and that `lib/appian/appian-selenium-api.jar` exists
-  there at `367,045` bytes **and matches the pinned sha256** — step 4 claiming to have written or
-  found them isn't the same as them being there, and existence or size alone would miss a binary
-  corrupted or tampered with in transit.
+  there at `367,045` bytes. Confirm its sha256 too, the same way as step 4's jar bullet: pull its
+  content back, decode it, and hash the decoded bytes with `sha256sum` / `shasum -a 256` /
+  `certutil -hashfile` (same normalization rule), comparing against the pinned value — the
+  file-read tool's own metadata exposes only a git blob SHA-1, never a sha256, so it cannot answer
+  this by itself. Step 4 claiming to have written or found them isn't the same as them being there,
+  and existence or size alone would miss a binary corrupted or tampered with in transit.
 - Confirm no `.java` file remains at the Test repo's root unless step 7 already accounts for it —
   moved in step 4, listed there as needing manual removal, or listed there as left in place because
   it didn't match the generated-test signal, not silently unaccounted for.
