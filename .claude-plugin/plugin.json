@@ -1,6 +1,6 @@
 {
   "name": "iadc-tester",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Generate and sync Appian Selenium tests from a Jira ticket's requirements — scoped by the App Graph, not discovered ad hoc.",
   "author": { "name": "Ignyte Group" },
   "dependencies": ["iadc-graph"]

@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Configure the iadc-tester plugin for this Appian project — write the per-project test configuration into this repo, then hand off to `/iadc-graph:setup` for the graph connection. Run once per app repo after installing the plugin, before first use of `generate-selenium-tests`.
+description: Configure the iadc-tester plugin for this Appian project — write the per-project test configuration into this repo, establish the Test repo's Gradle build and commit the Appian Selenium API jar generated tests compile against, then hand off to `/iadc-graph:setup` for the graph connection. Run once per app repo after installing the plugin, before first use of `generate-selenium-tests`.
 disable-model-invocation: true
 ---
 
@@ -9,7 +9,8 @@ disable-model-invocation: true
 Configure the plugin for the Appian project you're pointing it at. The plugin itself is installed
 out of this repo, in a shared cache that is read-only and replaced on every update — so it holds
 **no** per-project values and can ship **no** files here. This skill is what materializes them: it
-collects the real values and **generates** the per-project state in this repo.
+collects the real values and **generates** the per-project state in this repo — and, in step 4,
+generates the build the Test repo needs to compile what `generate-selenium-tests` pushes to it.
 
 This is a prompt-driven skill, not a deterministic script. Explore, present what you found, confirm
 with the user, then write. Take it one field at a time — one question, one answer, then the next.
@@ -25,7 +26,7 @@ Read the current state; don't assume:
   placeholder.
 - `.gitignore` — does it already have the `docs/agents/tester.local.md` entry?
 - Are `mcp__iadc__*` tools (e.g. `mcp__iadc__seed`) present in this session? Their presence is
-  useful context for step 5 — it means an entry already *looks* live — but it settles nothing on
+  useful context for step 6 — it means an entry already *looks* live — but it settles nothing on
   its own (a **tracked** `.mcp.json` can still pass this check) and it doesn't skip anything below.
   This skill has no other reason to read `.mcp.json` itself; `iadc-graph:setup` owns that file.
 
@@ -47,7 +48,7 @@ docs/agents/tester.local.md
 - **Both lines already there** — nothing to add. Continue to step 3.
 - **Either line is missing** — show the user exactly which line(s) are missing and get an explicit
   yes before adding them. Create `.gitignore` if it doesn't exist yet.
-  - **Decline** — add nothing, and don't ask again this run. **Skip step 4 entirely this run
+  - **Decline** — add nothing, and don't ask again this run. **Skip step 5 entirely this run
     too** — don't write `docs/agents/tester.local.md` ungitignored, which would make a
     machine-specific value trackable, the exact outcome the ignore rule exists to prevent. Say
     plainly what that means: the Harness path stays unset until the repo ignores that file (this
@@ -62,14 +63,16 @@ skills are shared, read-only, and replaced on update; the family's per-project-s
 `generate-selenium-tests` reads this file at the point of use, as its own step 0.
 
 **On a repo that already has real values here** — a prior run — don't re-ask a field that already
-carries a real answer; only ask about one still showing its `<...>` placeholder.
+carries a real answer; only ask about one still showing its `<...>` placeholder. **If a `Test
+project folder` line is still there from a run before IV-368, delete it** — nothing reads that
+field any more (see step 4): the layout is now fixed at `src/test/java/autogen`, established by the
+build file rather than recorded as a per-project answer, so a leftover line here is stale, not
+merely unread.
 
 **Keep the template's field labels verbatim** — `Application UUID`, `Test repo` (+ `Branch`),
 `Test site URL`, `Site web address`, `Test username`, `Site version` in `tester.md`, and
-`Harness path` in `tester.local.md` (step 4) — `generate-selenium-tests` matches on those exact
-labels; rename or reword one and the value simply stops being found. `Test project folder` needs
-the same verbatim label for whenever it gets a reader, but nothing reads it yet: IV-368 is what
-wires that in, not this skill.
+`Harness path` in `tester.local.md` (step 5) — `generate-selenium-tests` matches on those exact
+labels; rename or reword one and the value simply stops being found.
 
 Fill every value **in place**, replacing the `<...>` placeholder with a real answer. Never invent a
 value, and never delete a line unless the template says to.
@@ -78,11 +81,8 @@ value, and never delete a line unless the template says to.
   `iadc` graph. Take it from the user; this plugin doesn't configure a live Appian connection to
   look it up itself.
 - **Test repo** (+ **Branch**) — the git repository, and the branch on it, that the generated
-  test files are pushed to.
-- **Test project folder** — where this application's generated tests must sit to compile against
-  the test harness. Record the user's answer as given. How it relates to the Harness path (step 4)
-  is a separate, still-open question — don't tell the user it sits inside or outside the harness
-  tree; this skill only collects the value.
+  test files are pushed to. Step 4 uses this same repo and branch to establish the build that
+  compiles them — resolve it here first.
 - **Test site URL** — the full URL used to sign in.
 - **Site web address** — the site's internal web address, used for navigation once signed in.
 - **Test username** — the Appian username these tests sign in as. Must have a matching entry in
@@ -97,16 +97,72 @@ rather than inventing a value.
 the team agrees on one answer for each. If a user's answer genuinely differs from what's already
 committed here, that's a question for the team, not a `.local` override.
 
-### 4. Set the machine value
+### 4. Establish the build in the Test repo
+
+Generated tests declare `package autogen;` and import
+`com.appiancorp.ps.automatedtest.fixture.SitesFixture` — pushed as bare `.java` source, neither
+compiles: there is no build file, no `autogen/` directory, and nothing on the classpath. This step
+fixes all three, in the **Test repo** (+ **Branch**) resolved in step 3 — a different repo from the
+one this session is running in. It's the first thing this skill writes there, via the GitHub MCP
+connector rather than a local file write; if that connector isn't connected, this step fails
+outright the same way `generate-selenium-tests` step 8's push already assumes it — this skill
+doesn't configure or check that connector any more than that one does.
+
+**Check first**, with the GitHub MCP connector's file-read tool, whether `lib/appian/appian-selenium-api.jar`,
+`build.gradle` and `settings.gradle` already exist at the Test repo's root on the Branch. All three
+present means a prior run (or a maintainer) already did this — say so and skip the rest of this
+step; don't re-fetch or overwrite anything a maintainer may have hand-edited. Otherwise, fill in
+whatever's missing:
+
+- **The jar.** `appian-selenium-api.jar` has no Maven artifact — the vendor
+  (`gitlab.com/appian-oss/appian-selenium-api`, Apache License 2.0) distributes it only as a
+  generic GitLab package. Download it — e.g. `curl -L -o appian-selenium-api.jar
+  <url>` — from:
+
+  ```
+  https://gitlab.com/api/v4/projects/appian-oss%2Fappian-selenium-api/packages/generic/FCS/20260725/appian-selenium-api.jar
+  ```
+
+  This URL needs **no authentication** — it's a public package on a public project. **Pinned
+  version: `FCS/20260725`.** A maintainer moving to a newer release edits the version in this URL —
+  here and in `build.gradle.template`'s header comment below — the same lag-never-lead pinning the
+  family already uses for the mirrored graph skill (never track "latest"). Push the downloaded file
+  to `lib/appian/appian-selenium-api.jar` in the Test repo with the GitHub MCP connector's file
+  creation/update tool.
+
+  **This is a committed binary, deliberately.** The alternative — a developer downloading it by
+  hand, onto a machine-specific path nothing else can see — is the defect IV-368 removes. Committing
+  it is what lets a fresh clone of the Test repo compile this dependency with no network access and
+  no login. Say this plainly to the user; `build.gradle.template`'s own header comment says it again
+  at the point a Test-repo reader — who may never see this skill's prose — will actually find it.
+
+- **The build file.** Push `skills/setup/build.gradle.template`'s content, unedited, to
+  `build.gradle` in the Test repo, and `skills/setup/settings.gradle.template`'s content, unedited,
+  to `settings.gradle`. Copy them verbatim — don't regenerate their content from memory. The
+  dependency versions inside are measured against the vendor's own build of this exact jar, not
+  guessed; changing them here would silently drop that guarantee.
+
+**This establishes the layout, not just two files.** `build.gradle` applies Gradle's `java` plugin
+and declares no custom source sets, so it defaults to Gradle's standard test source root,
+`src/test/java`. A file declaring `package autogen;` must sit in `src/test/java/autogen/` under
+that root to compile — that fixed path is what `generate-selenium-tests` step 8 now pushes to. It
+is **Test project folder**, settled: always this path, inside the Test repo, unrelated to wherever
+**Harness path** (step 5) points on this or any other machine — `docs/agents/tester.md` no longer
+carries a `Test project folder` field, because there is no longer a project-specific question to
+record an answer for.
+
+### 5. Set the machine value
 
 **Only if step 2's ignore rule is in place** (already there, or just accepted) — collect the
 **Harness path**: the absolute filesystem path to the extracted Appian Selenium API distribution on
-this machine. Write it into **`docs/agents/tester.local.md`**, from this skill's
+this machine. It is read only for the Javadoc and `ExampleProjects` reference material
+`generate-selenium-tests` step 6 reads during generation — since step 4 above, no longer for
+compiling. Write it into **`docs/agents/tester.local.md`**, from this skill's
 [tester-local-config-template.md](./tester-local-config-template.md).
 
 If step 2 was declined, this step doesn't run this session — step 2 already said so.
 
-### 5. Hand off to `/iadc-graph:setup` for the graph connection
+### 6. Hand off to `/iadc-graph:setup` for the graph connection
 
 `generate-selenium-tests` reaches the graph over the `iadc` MCP server, configured in this repo's
 `.mcp.json`. This skill does not configure that server itself: writing that entry means writing a
@@ -124,7 +180,7 @@ that file. Say plainly that it can wait: before, during, or after this setup, in
 since nothing here depends on it. That skill never silently overwrites a working entry. This skill
 neither writes that entry nor waits on the other one.
 
-### 6. Review everything this run touched
+### 7. Review everything this run touched
 
 Re-show, in one place, everything the run touched, so the user sees the whole shape of it before you
 call setup done:
@@ -133,24 +189,29 @@ call setup done:
 - **`docs/agents/tester.local.md`** — written, or deliberately skipped because step 2's ignore rule
   was declined.
 - **The `.gitignore` line** — added, already present, or declined.
+- **The Test repo's build** — `lib/appian/appian-selenium-api.jar`, `build.gradle` and
+  `settings.gradle`: freshly written, or already present from an earlier run.
 - **The `iadc` handoff** — told to the user (always), noting whether step 1 already saw a
   live-looking entry.
 
-### 7. Verify
+### 8. Verify
 
 - `docs/agents/tester.md` exists and every field carries a real answer — any `<...>` still standing
   means that field is genuinely unset, not done.
 - If `docs/agents/tester.local.md` was written, confirm it's actually ignored:
   `git check-ignore docs/agents/tester.local.md` succeeds. If step 2's ignore rule was declined,
-  this file was never written (step 4) — nothing to check.
-- Remind the user to run `/iadc-graph:setup` if they haven't yet — step 5 already told them once;
+  this file was never written (step 5) — nothing to check.
+- With the GitHub MCP connector's file-read tool, confirm `lib/appian/appian-selenium-api.jar`,
+  `build.gradle` and `settings.gradle` all exist at the Test repo's root on the Branch — step 4
+  claiming to have written or found them isn't the same as them being there.
+- Remind the user to run `/iadc-graph:setup` if they haven't yet — step 6 already told them once;
   repeat it here since this is close to the last thing they read. Don't call `generate-selenium-tests`
   ready to use: it also needs the Atlassian and GitHub connectors, which this skill neither
   configures nor checks. Say that plainly instead of claiming a readiness this skill hasn't
   established.
 
-### 8. Done
+### 9. Done
 
-Tell the user setup is complete. They can edit `docs/agents/tester.md` and
-`docs/agents/tester.local.md` directly later — re-run this skill only to re-point the plugin at a
-different Appian project.
+Tell the user setup is complete. They can edit `docs/agents/tester.md`,
+`docs/agents/tester.local.md`, and the Test repo's `build.gradle` directly later — re-run this
+skill only to re-point the plugin at a different Appian project.

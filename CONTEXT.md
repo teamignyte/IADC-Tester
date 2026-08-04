@@ -31,32 +31,41 @@ whole purpose, the opposite of what that posture means (`ADR 0008`).
 ### The Selenium harness
 
 **Test harness**:
-The extracted Appian Selenium API distribution — it supplies both the fixture classes every
-generated test imports and compiles against, and the **Javadoc** that confirms which methods exist.
-Exactly where a generated test must sit to compile against it is unsettled — see
-**Test project folder**.
+The extracted Appian Selenium API distribution — it supplies the **Javadoc** that confirms which
+fixture methods exist, and the `ExampleProjects` folder `generate-selenium-tests` reads for usage
+patterns. Since IV-368 it no longer supplies what a generated test compiles against: that is
+`appian-selenium-api.jar`, downloaded once by `/iadc-tester:setup` and committed into the **Test
+repo** at a fixed path — see **Test project folder**.
 _Avoid_: "the Selenium files" (ambiguous — the harness, the Javadoc inside it, and the generated
 tests are three different things)
 
 **Harness path**:
-The absolute filesystem path to the **Test harness** root. **Per-machine** — two developers on one
-project have different answers, and in a **Pipeline run** it is a property of the image rather than
-of any person. The standing example of a `.local`-tier value under the family's per-project-state
-convention.
+The absolute filesystem path to the **Test harness** root. Read only to reach the Javadoc and
+`ExampleProjects` reference material during generation (`generate-selenium-tests` step 6) — since
+IV-368, no longer to compile: that moved to the jar committed in the **Test repo**. **Per-machine**
+— two developers on one project have different answers, and in a **Pipeline run** it is a property
+of the image rather than of any person. The standing example of a `.local`-tier value under the
+family's per-project-state convention.
 
 **Javadoc**:
 The API reference carried inside the **Test harness**. It is the *authority* on whether a fixture
 method exists: a method is confirmed against the Javadoc, never assumed from a plausible name. This
-is the reason the harness must be present to generate tests, not only to run them.
+is the reason the harness must be present to *generate* tests — since IV-368, no longer to compile
+or run them.
 
 **Test project folder**:
-Where this application's generated tests must sit to compile against the **Test harness**.
-Committed-tier: the team agrees on one value. Exactly where that is remains unsettled — it may or
-may not be inside the harness tree — and is what IV-368 resolves.
+The fixed path inside the **Test repo** where generated tests are pushed to compile:
+`src/test/java/autogen`, matching the `package autogen;` every generated file declares — Gradle's
+`java` plugin default test source set, plus the package statement. Established once by
+`/iadc-tester:setup`'s build file (IV-368), not asked as a per-project question, and **not
+per-project state at all**: every **Test repo** gets the same answer, independent of wherever
+**Harness path** points on any given machine. That settles IV-365's open question — it is neither
+"inside" nor "outside" the harness, because the two no longer relate.
 
 **Test repo**:
-The git repository holding the generated test files — the durable home for them, separate from the
-**Test harness** they execute inside. Committed-tier.
+The git repository holding the generated test files, the Gradle build file that compiles them, and
+the committed `appian-selenium-api.jar` they compile against — the durable home for all three,
+separate from the **Test harness** a developer extracts locally to generate tests. Committed-tier.
 
 ### Reconciliation
 

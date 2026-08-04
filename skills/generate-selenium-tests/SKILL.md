@@ -39,7 +39,10 @@ Steps:
    - **Site version** — env `TEST_SITE_VERSION`, then `tester.md`.
    - **Harness path** — env `TEST_HARNESS_PATH`, then `tester.local.md` (this one is
      machine-specific, not `tester.md`). The absolute filesystem path to the extracted
-     Appian Selenium API distribution.
+     Appian Selenium API distribution — read in step 6 for its Javadoc and
+     `ExampleProjects` reference material only. Not needed to compile: generated tests
+     compile against `appian-selenium-api.jar`, committed in the Test repo by
+     `/iadc-tester:setup` (see step 8).
 
    `TEST_BROWSER`, `TEST_SITE_LOCALE` and `TEST_TIMEOUT` are not per-client — see step 6.
 
@@ -170,6 +173,9 @@ Steps:
        available methods. Confirm methods against the Javadoc rather than
        assuming; confirm whether the fixture exposes an editability check —
        see references/field-editability.md.
+     - Declare `package autogen;` as the file's first line — the fixed package every
+       generated test uses, matching the `src/test/java/autogen/` layout
+       `/iadc-tester:setup` establishes in the Test repo (step 8 pushes there).
      - Structure it as a JUnit 5 test class: `private static SitesFixture
        fixture;` field, a `@BeforeAll` static setup method (construct,
        configure, log in), an `@AfterAll` static teardown method
@@ -245,11 +251,13 @@ Steps:
    files, everything that wasn't supposed to change is still intact exactly
    as it was pulled in step 4.
 
-8. Save each file (new or edited) then push it to the root of
+8. Save each file (new or edited) then push it to `src/test/java/autogen/` in
    the Test repo resolved in step 0, on the Branch resolved in step 0, using the GitHub MCP
-   server's file creation/update tool. Push each file individually so an
-   edited file updates its existing repo entry rather than creating a
-   duplicate.
+   server's file creation/update tool — not the repo root. `/iadc-tester:setup` establishes
+   a Gradle build there whose default test source set is `src/test/java`; every generated
+   file's own `package autogen;` (step 6) supplies the rest of the path, so this is where it
+   must land to compile. Push each file individually so an edited file updates its existing
+   repo entry rather than creating a duplicate.
 
 Constraints:
 - Do not run the tests.

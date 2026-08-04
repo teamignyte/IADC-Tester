@@ -11,7 +11,6 @@ word like `none`.
 - **Application UUID:** `<the Appian application these tests cover — the iadc graph seed target>`
 - **Test repo:** `<the git repository holding the generated test files, e.g. your-org/your-repo>`
   - **Branch:** `<the branch in Test repo that generated files are pushed to>`
-- **Test project folder:** `<where this application's generated tests must sit to compile against the test harness>`
 - **Test site URL:** `<the full URL used to sign in, e.g. https://your-tenant.appiancloud.com/suite>`
 - **Site web address:** `<the site's internal web address, used for navigateToSite once signed in>`
 - **Test username:** `<the Appian username these tests sign in as — must have a matching entry in users.properties>`

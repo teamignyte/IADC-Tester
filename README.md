@@ -54,7 +54,9 @@ claude plugin install iadc-tester@ignyte --scope project
 bundle that pulls in both products.
 
 Then run `/iadc-tester:setup` once per project, before the first `/generate-selenium-tests` — it
-writes this project's configuration and hands off to `/iadc-graph:setup` for the graph connection.
+writes this project's configuration, establishes the Test repo's Gradle build and commits the
+Appian Selenium API jar it compiles against, and hands off to `/iadc-graph:setup` for the graph
+connection.
 
 ## Addressing the graph skill
 
