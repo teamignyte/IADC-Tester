@@ -23,15 +23,19 @@ files in that repo, and a missing value can be asked for.
 **Pipeline run**:
 The plugin running server-side in the Appian-initiated pipeline, seeded into a container image at
 build time. There is **no user to ask** and possibly no repo to read, so every value must be
-resolvable from the environment. The two runtimes are why this plugin ships no session hook and
-carries no advisory posture — see the family's `ADR 0008` and `ADR 0009`.
+resolvable from the environment. This plugin ships no session hook and carries no
+**advisory posture** — neither is a consequence of running here specifically. The family allows at
+most one session hook across all its plugins, and Advisor already holds it (`ADR 0009`);
+separately, writing code is this plugin's whole purpose, the opposite of what that posture means
+(`ADR 0008`).
 
 ### The Selenium harness
 
 **Test harness**:
-The extracted Appian Selenium API distribution. It is not documentation — it is the thing the tests
-compile and run *inside*. A generated test file only works when it sits at the expected location
-within this tree, which is why the harness is a configured value and not an incidental detail.
+The extracted Appian Selenium API distribution — it supplies both the fixture classes every
+generated test imports and compiles against, and the **Javadoc** that confirms which methods exist.
+Exactly where a generated test must sit to compile against it is unsettled — see
+**Test project folder**.
 _Avoid_: "the Selenium files" (ambiguous — the harness, the Javadoc inside it, and the generated
 tests are three different things)
 
@@ -47,8 +51,9 @@ method exists: a method is confirmed against the Javadoc, never assumed from a p
 is the reason the harness must be present to generate tests, not only to run them.
 
 **Test project folder**:
-The folder within the **Test harness** where this application's generated tests live. Committed-tier:
-the team agrees on one, even though the harness containing it is per-machine.
+Where this application's generated tests must sit to compile against the **Test harness**.
+Committed-tier: the team agrees on one value. Exactly where that is remains unsettled — it may or
+may not be inside the harness tree — and is what IV-368 resolves.
 
 **Test repo**:
 The git repository holding the generated test files — the durable home for them, separate from the
@@ -61,7 +66,7 @@ A single application + workflow/action combination — "Add Rule in the Isaac Sa
 The **unit of matching** between a ticket's acceptance criteria and the test suite: all criteria for
 one workflow on one application stay together, and a feature resolves to exactly one test file.
 Most tickets describe one feature. This is the term the whole reconciliation process is defined in.
-_Avoid_: "test case", "scenario" (both suggest a single `@Test` method; a feature usually spans
+_Avoid_: "test case", "scenario" (both suggest a single `@Test` method; a feature may span
 several)
 
 **Reconciliation**:
@@ -72,10 +77,11 @@ scratch, which is the case where a **Feature** has no existing file.
 
 ## Conformance
 
-This context defines only the terms above. Two bodies of vocabulary are used here and owned
-elsewhere; neither is restated locally, and a duplicate definition is a defect rather than a nuance.
+This context defines only the terms above. Three bodies of vocabulary are used here and owned
+elsewhere; none is restated locally, and a duplicate definition is a defect rather than a nuance.
 
-- **App Graph**, **Graph Snapshot**, **Graph Query MCP**, **Graph service**, **Object Test**,
-  **Artifact** — owned by **Core**, used exactly as `IADC-Core/CONTEXT.md` defines them.
+- **App Graph** — owned by **Core**, used exactly as `IADC-Core/CONTEXT.md` defines it.
+- **Catalog** and **Advisory posture** — owned by **Advisor**, used exactly as
+  `IADC-Advisor/CONTEXT.md` defines them.
 - **Per-project state** and its two tiers — a family **convention**, not a term of either product,
   owned by the umbrella at `docs/agents/per-project-state.md`.
