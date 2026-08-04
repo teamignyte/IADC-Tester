@@ -141,9 +141,21 @@ straight to the root-level check below. Otherwise, fill in whatever's missing or
   family already uses for the mirrored graph skill (never track "latest"). Missing any one of them
   would defeat the check above: matching size/hash is what lets an existing Test repo's *next* setup
   run notice its jar is now stale and replace it, instead of either a stale number passing against
-  itself or a correctly-updated jar failing a check that never got updated. Push the downloaded file
-  to `lib/appian/appian-selenium-api.jar` in the Test repo, on the Branch, with the GitHub MCP
-  connector's file creation/update tool.
+  itself or a correctly-updated jar failing a check that never got updated.
+
+  **Verify the download's sha256 before pushing anything.** Compute the sha256 of the file just
+  downloaded and compare it to the pinned value above — size alone is not an integrity check: a
+  tampered file padded to the same length still passes it, which is the whole reason a sha256 is
+  pinned here at all. Run whichever hash command the client machine actually has:
+  `sha256sum appian-selenium-api.jar` in a POSIX shell (Linux, WSL, Git Bash) — but `sha256sum`
+  itself is not universally present, so on macOS use `shasum -a 256 appian-selenium-api.jar`
+  instead (macOS ships Perl's `shasum`, not GNU coreutils), and on native Windows (`cmd.exe` or
+  PowerShell, outside WSL) use `certutil -hashfile appian-selenium-api.jar SHA256`, which needs
+  nothing installed beyond Windows itself. **On a mismatch, stop here:** don't push the file, don't
+  retry the download, and don't accept a size match as a substitute pass. Tell the user the pinned
+  sha256, the sha256 you actually computed, and that setup did not proceed. Only once the sha256
+  matches, push the downloaded file to `lib/appian/appian-selenium-api.jar` in the Test repo, on the
+  Branch, with the GitHub MCP connector's file creation/update tool.
 
   **This is a committed binary, deliberately.** The alternative — a developer downloading it by
   hand, onto a machine-specific path nothing else can see — is the defect IV-368 removes. Committing
@@ -155,7 +167,8 @@ straight to the root-level check below. Otherwise, fill in whatever's missing or
   there" doesn't confirm the push worked. Where the GitHub MCP connector's tools expose a size or
   hash without a full download, use that; otherwise pull the content back — the same way
   `generate-selenium-tests` step 4 already pulls existing test files — and check it locally. Either
-  way, confirm `367,045` bytes before treating this bullet as done.
+  way, confirm `367,045` bytes **and the sha256 pinned above** before treating this bullet as done —
+  size alone would miss a push that corrupted content without changing its length.
 
 - **The build file.** Push `skills/setup/build.gradle.template`'s content, unedited, to
   `build.gradle` in the Test repo, on the Branch, and `skills/setup/settings.gradle.template`'s
@@ -257,8 +270,9 @@ call setup done:
   this file was never written (step 5) — nothing to check.
 - With the GitHub MCP connector's file-read tool, confirm `build.gradle` and `settings.gradle`
   exist at the Test repo's root on the Branch, and that `lib/appian/appian-selenium-api.jar` exists
-  there at `367,045` bytes — step 4 claiming to have written or found them isn't the same as them
-  being there, and existence alone would miss a binary corrupted in transit.
+  there at `367,045` bytes **and matches the pinned sha256** — step 4 claiming to have written or
+  found them isn't the same as them being there, and existence or size alone would miss a binary
+  corrupted or tampered with in transit.
 - Confirm no `.java` file remains at the Test repo's root unless step 7 already accounts for it —
   moved in step 4, listed there as needing manual removal, or listed there as left in place because
   it didn't match the generated-test signal, not silently unaccounted for.
