@@ -61,7 +61,7 @@ the family already uses: one repo per Appian application, so one UUID.
   human. That does not make the whole skill container-ready: IV-365 gave step 2's application UUID
   (and the rest of `docs/agents/tester.md`'s fields) an environment-variable tier, but steps 1, 3, 4
   and 8 still call the interactively-authenticated Atlassian and GitHub connectors — IV-365 did
-  **not** close that gap; no setup skill in the family configures or checks either connector yet.
+  **not** close that gap; no setup skill in this plugin configures or checks either connector yet.
 - **SAIL now comes from the seeded export, not the live object.** The skill seeds fresh on every
   run, so the window is small — but it is not zero, and a design object edited mid-run will not be
   reflected. `report_changes` exists for the case where that matters.

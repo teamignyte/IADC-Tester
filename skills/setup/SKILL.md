@@ -121,9 +121,8 @@ not instead of it: tool presence doesn't rule out a **tracked** `.mcp.json`, whi
 `iadc-graph:setup` checks for and warns about (a committed credential is readable from git history
 even after the file is untracked) and this skill has no way to check itself, since it never reads
 that file. Say plainly that it can wait: before, during, or after this setup, in its own session,
-since nothing here depends on it. That skill never silently overwrites a working entry — a repo
-that ran an older version of this skill keeps what it already has unless the user chooses
-otherwise. This skill neither writes that entry nor waits on the other one.
+since nothing here depends on it. That skill never silently overwrites a working entry. This skill
+neither writes that entry nor waits on the other one.
 
 ### 6. Review everything this run touched
 
