@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Configure the iadc-tester plugin for this Appian project — write the per-project test configuration into this repo, establish the Test repo's Gradle build and commit the Appian Selenium API jar generated tests compile against, then hand off to `/iadc-graph:setup` for the graph connection. Run once per app repo after installing the plugin, before first use of `generate-selenium-tests`.
+description: Configure the iadc-tester plugin for this Appian project — write the per-project test configuration into this repo, establish the Test repo's Gradle build and commit the Appian Selenium API jar generated tests compile against, then hand off to `/iadc-graph:setup` for the graph connection. Run after installing the plugin, before first use of `generate-selenium-tests`, and again whenever that skill reports this Test repo hasn't been through it yet.
 disable-model-invocation: true
 ---
 

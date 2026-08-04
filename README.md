@@ -53,10 +53,10 @@ claude plugin install iadc-tester@ignyte --scope project
 `iadc-graph` comes with it. To get the advisory architect as well, install `iadc@ignyte`, the
 bundle that pulls in both products.
 
-Then run `/iadc-tester:setup` once per project, before the first `/generate-selenium-tests` — it
-writes this project's configuration, establishes the Test repo's Gradle build and commits the
-Appian Selenium API jar it compiles against, and hands off to `/iadc-graph:setup` for the graph
-connection.
+Then run `/iadc-tester:setup` before the first `/generate-selenium-tests` — it writes this
+project's configuration, establishes the Test repo's Gradle build and commits the Appian Selenium
+API jar it compiles against, and hands off to `/iadc-graph:setup` for the graph connection. Run it
+again later if `/generate-selenium-tests` reports the Test repo hasn't been through it yet.
 
 ## Addressing the graph skill
 
