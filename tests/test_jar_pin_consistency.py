@@ -79,7 +79,12 @@ def _tracked_files() -> list:
     result = subprocess.run(
         ["git", "ls-files"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
     )
-    return [REPO_ROOT / line for line in result.stdout.splitlines() if line]
+    files = [REPO_ROOT / line for line in result.stdout.splitlines() if line]
+    assert files, (
+        f"git ls-files returned nothing under {REPO_ROOT} -- an empty result would otherwise make "
+        "the digest scan below examine zero files and silently pass"
+    )
+    return files
 
 
 def test_no_untracked_copy_of_the_pinned_sha256(pin):

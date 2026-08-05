@@ -4,7 +4,11 @@ on:
   push:
   pull_request:
 
-# This job only reads the repository; declaring it here rather than relying on a repository setting keeps the two workflows identical in effect.
+# Narrower than the family reference workflow (IADC-Graph-Plugin's ci.yml), which declares no
+# permissions block and no persist-credentials override: this repo's default GITHUB_TOKEN scope is
+# write, not read, so this line and the checkout step's persist-credentials: false narrow it in the
+# file rather than leaving CI running with more access than a read-only test job needs --
+# deliberate defence-in-depth, not drift to be synced away.
 permissions:
   contents: read
 

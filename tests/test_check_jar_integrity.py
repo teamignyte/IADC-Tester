@@ -45,14 +45,17 @@ def write_pin(tmp_path: Path, sha256: str, *, version: str = "TEST", size: str |
 
 def _minimal_path_with(tmp_path: Path, extra_tool_dirs: list[Path] | None = None) -> str:
     """Build a PATH containing only the coreutils this script itself needs (bash, grep, cut, wc,
-    tr, head) plus whatever tool directories are listed first, so `command -v <tool>` genuinely
-    fails for anything not explicitly provided rather than the branch merely going untested."""
+    tr, head, tail) plus whatever tool directories are listed first, so `command -v <tool>`
+    genuinely fails for anything not explicitly provided rather than the branch merely going
+    untested. `tail` matters here specifically: it's only reached by normalize_digest's "last"
+    mode, i.e. only by the certutil arm -- a PATH that omitted it would silently make every
+    certutil-branch test below exercise a different failure than the one it's named for."""
     import os
     import shutil
 
     bin_dir = tmp_path / "minimal-bin"
     bin_dir.mkdir(exist_ok=True)
-    for tool in ("bash", "grep", "cut", "wc", "tr", "head"):
+    for tool in ("bash", "grep", "cut", "wc", "tr", "head", "tail"):
         real = shutil.which(tool)
         assert real, f"{tool} must be on the real PATH for this test to construct a fake one"
         link = bin_dir / tool
@@ -195,6 +198,70 @@ class TestFilenameCannotSubstituteForTheHash:
         assert result.returncode == 0, result.stdout + result.stderr
         assert "OK" in result.stdout
 
+    def test_certutil_branch_rejects_a_digest_named_path_with_the_wrong_bytes(
+        self, good_digest, tmp_path
+    ):
+        """The certutil arm is the one branch normalize_digest still reaches with a filename in
+        the blob -- it has no stdin mode -- so it's the one branch that needs digest_mode="last"
+        rather than being safe by construction. certutil itself doesn't exist on this (Linux) host,
+        so a shim stands in for it: real certutil isn't reachable here, but its *output format* and
+        the dispatch loop's *selection of it* both are, and this drives the real script's real
+        dispatch through a PATH with no sha256sum, shasum or openssl on it, so the certutil arm is
+        the one genuinely exercised, not a stand-in for it."""
+        evil_dir = tmp_path / good_digest
+        evil_dir.mkdir()
+        evil_file = evil_dir / "appian-selenium-api.jar"
+        evil_file.write_bytes(b"not the pinned bytes -- only the containing path claims to be")
+        assert hashlib.sha256(evil_file.read_bytes()).hexdigest() != good_digest
+
+        pin_path = write_pin(tmp_path, good_digest)
+        env = {"PATH": _minimal_path_with(tmp_path, [_certutil_shim_dir(tmp_path)])}
+        result = subprocess.run(
+            ["bash", str(CHECK_JAR_INTEGRITY), str(evil_file), str(pin_path)],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "MISMATCH" in result.stdout
+
+    def test_certutil_branch_still_accepts_the_correct_bytes_at_a_digest_named_path(
+        self, good_jar, good_digest, tmp_path
+    ):
+        """Positive control for the test above, same shim: the digest-named-directory shape must
+        still pass when the bytes really are correct."""
+        good_dir = tmp_path / good_digest
+        good_dir.mkdir()
+        same_named_good_file = good_dir / "appian-selenium-api.jar"
+        same_named_good_file.write_bytes(good_jar.read_bytes())
+
+        pin_path = write_pin(tmp_path, good_digest)
+        env = {"PATH": _minimal_path_with(tmp_path, [_certutil_shim_dir(tmp_path)])}
+        result = subprocess.run(
+            ["bash", str(CHECK_JAR_INTEGRITY), str(same_named_good_file), str(pin_path)],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "OK" in result.stdout
+
+    def test_certutil_branch_accepts_an_ordinary_correct_file(
+        self, good_jar, good_digest, tmp_path
+    ):
+        """The shim, exercised on the plain path the skill's own prose actually uses -- no
+        digest-named directory involved -- so this class isn't only ever testing the attack shape."""
+        pin_path = write_pin(tmp_path, good_digest)
+        env = {"PATH": _minimal_path_with(tmp_path, [_certutil_shim_dir(tmp_path)])}
+        result = subprocess.run(
+            ["bash", str(CHECK_JAR_INTEGRITY), str(good_jar), str(pin_path)],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "OK" in result.stdout
+
 
 def _openssl_only_dir(tmp_path: Path) -> Path:
     import shutil
@@ -208,6 +275,32 @@ def _openssl_only_dir(tmp_path: Path) -> Path:
         import os
 
         os.symlink(real_openssl, link)
+    return tool_dir
+
+
+def _certutil_shim_dir(tmp_path: Path) -> Path:
+    """A `certutil` shim emitting the tool's real, documented three-line `-hashfile` output shape
+    -- "SHA256 hash of <path>:", the digest on its own line, then "CertUtil: -hashfile command
+    completed successfully." -- driven by the real sha256sum under the hood, since certutil itself
+    doesn't exist on this (Linux) host. The invocation this script uses is
+    `certutil -hashfile <path> SHA256`, so the path is the shim's $2."""
+    import shutil
+
+    real_sha256sum = shutil.which("sha256sum")
+    assert real_sha256sum, "sha256sum must be on the real PATH to build the certutil shim"
+    tool_dir = tmp_path / "certutil-only-bin"
+    tool_dir.mkdir(exist_ok=True)
+    shim = tool_dir / "certutil"
+    shim.write_text(
+        "#!/usr/bin/env bash\n"
+        'file="$2"\n'
+        f'digest="$("{real_sha256sum}" "$file" | cut -d" " -f1)"\n'
+        'echo "SHA256 hash of $file:"\n'
+        'echo "$digest"\n'
+        'echo "CertUtil: -hashfile command completed successfully."\n',
+        encoding="utf-8",
+    )
+    shim.chmod(0o755)
     return tool_dir
 
 

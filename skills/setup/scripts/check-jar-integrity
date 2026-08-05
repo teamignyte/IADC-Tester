@@ -65,10 +65,12 @@ set -uo pipefail
 # stdin rather than named as an argument, specifically so their output never contains a filename at
 # all -- the first run found is safe by construction. certutil has no stdin mode; it must be given
 # a path, and that path appears in its own label line *before* the real digest. For that one branch
-# this function is called with mode "last": the digest sits between the label line (which may embed
-# an attacker-controlled filename) and the trailing "CertUtil: ... completed successfully." line
-# (which contains no hex run at all), so the last run in the blob is the real digest, not whatever
-# the filename happens to look like.
+# this function is called with mode "last": a path-embedded hex run can never merge with the real
+# digest into one longer run, because the label line's own terminating ":" always sits between them
+# -- so "last" reliably lands on the digest's run, not the path's. That run itself can still pick up
+# a few trailing characters from the next line ("CertUtil:" starts with two hex-valid letters, so the
+# digest and the "Ce" that follows it are one unbroken run once whitespace is stripped) -- which is
+# why the ${run:0:64} slice below, not the boundary of the run itself, is what discards them.
 #
 # Prints the first 64 hex characters of the selected run, lowercased. Prints nothing and returns 1
 # if no run exists.
@@ -147,9 +149,10 @@ HASH_TOOLS=(sha256sum shasum openssl certutil)
 # Absorbs the platform variance here, once, instead of teaching a model to pick among these four or
 # how to reconcile their output formats. sha256sum, shasum and openssl all read the file on stdin
 # (see normalize_digest above for why); certutil has no stdin mode and is given the path as an
-# argument instead. Loops on availability *and* success: a tool that's on PATH but exits non-zero
-# or prints nothing (a broken shim, a permissions problem) falls through to the next candidate
-# instead of being trusted just because `command -v` found it.
+# argument instead. Falls through to the next candidate on empty output, not on presence alone: a
+# tool that's on PATH but prints nothing (a broken shim, a permissions problem) doesn't stop the
+# loop just because `command -v` found it. Its exit status is not part of that check -- a tool that
+# prints something and then exits non-zero is still trusted.
 computed_raw=""
 digest_mode="first"
 for tool in "${HASH_TOOLS[@]}"; do
