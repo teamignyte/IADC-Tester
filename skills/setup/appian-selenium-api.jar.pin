@@ -1,0 +1,16 @@
+# The authoritative pin for the Appian Selenium API jar (IV-394 / family ADR 0011).
+#
+# skills/setup/scripts/check-jar-integrity reads SHA256= from this file; nothing else in this
+# repo is a second source of truth for it. Two places still *state* the same numbers for a reader
+# who won't run the script -- skills/setup/SKILL.md's download-URL bullet (the version is part of
+# the URL path itself) and skills/setup/build.gradle.template's header comment (a deliberate
+# restatement at the point a Test-repo reader who may never see this skill's prose will actually
+# find it). tests/test_jar_pin_consistency.py asserts both agree with this file, so an edit to one
+# without the others fails CI instead of silently drifting.
+#
+# A maintainer moving to a newer release edits this file first, then the download URL and
+# build.gradle.template's header comment to match -- the same lag-never-lead pinning convention
+# the family already uses for the mirrored graph skill (never track "latest").
+VERSION=FCS/20260725
+SIZE=367045
+SHA256=80dcc7560f026aba27bc74de5a242eef4d1e80e5350e465e91a83aa55cdcece8

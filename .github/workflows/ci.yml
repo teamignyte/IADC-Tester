@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Least privilege, and the shape all three of the family's CI workflows carry (this one,
+# IADC-Advisor's, IADC-Graph-Plugin's): this repo's default GITHUB_TOKEN scope is write, not read,
+# so this block and the checkout step's persist-credentials: false narrow it in the file rather
+# than leaving CI running with more access than a read-only test job needs. None of the three is a
+# "reference" the others are synced to -- if one loses either line, that is a regression there,
+# not a licence to drop it here.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python3 -m pytest -v

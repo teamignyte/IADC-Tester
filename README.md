@@ -11,7 +11,8 @@ You give it a ticket key; it works out the rest.
 /generate-selenium-tests IV-201
 ```
 
-The Appian application under test is resolved from the ticket's Jira project — you don't name it.
+The Appian application under test comes from this project's own configuration
+(`docs/agents/tester.md`, written by `/iadc-tester:setup`) — you don't name it.
 Before pulling any SAIL, the skill builds a dependency graph of the relevant interfaces through the
 **`iadc-graph`** skill, so the SAIL trace is scoped by the actual App Graph rather than discovered
 ad hoc.
@@ -21,21 +22,30 @@ ad hoc.
 ```
 .claude-plugin/plugin.json          the manifest
 skills/generate-selenium-tests/     SKILL.md + references/
+skills/setup/                       SKILL.md, config templates, the jar integrity-check script and pin
+tests/                              the guards that hold the two skills to their contracts
 ```
 
 `skills/` is **auto-discovered** — it is deliberately not declared in `plugin.json`. Declaring
 skills or hooks there as well registers the same paths twice, and the plugin then installs
 successfully but loads nothing. `claude plugin validate` does not catch it.
 
+One of those guards ratchets the shell commands written into skill prose:
+`tests/skill_command_baseline.py` records a count per skill file and the suite fails when one
+moves either way. **`tests/test_skill_command_ratchet.py` is a mirror** — `IADC-Advisor` authors
+it, so a fix belongs there first and travels here in the same change. Nothing mechanical binds
+the two copies.
+
 ## The graph dependency
 
 `plugin.json` declares `dependencies: ["iadc-graph"]`, so installing this plugin also installs the
-graph skill, pinned to the sha of the **deployed** graph server. That is not an extra requirement
-imposed on the skill — its own frontmatter already states that it invokes `iadc-graph` before
-pulling SAIL source.
+graph skill. That is not an extra requirement imposed on the skill — its own frontmatter already
+states that it invokes `iadc-graph` before pulling SAIL source.
 
-The dependency is deliberately **unversioned**. It tracks whatever the marketplace entry provides,
-which is the sha pin, so every consumer moves together when that pin moves. See the family's
+The dependency is deliberately **unversioned**, and so is the catalog entry behind it: that entry
+carries no `ref` or `sha`, so an install takes the graph plugin's default-branch tip at install
+time. Every consumer therefore moves together, on that one tip — a refresh of the graph skill
+reaches every new install immediately, with no second gate. See the family's
 [ADR 0003](https://github.com/teamignyte/IADC/blob/main/docs/adr/0003-shared-skills-ship-as-pinned-marketplace-plugins.md)
 and [ADR 0008](https://github.com/teamignyte/IADC/blob/main/docs/adr/0008-tester-ships-as-its-own-plugin-with-a-bundle.md).
 
@@ -50,6 +60,11 @@ claude plugin install iadc-tester@ignyte --scope project
 
 `iadc-graph` comes with it. To get the advisory architect as well, install `iadc@ignyte`, the
 bundle that pulls in both products.
+
+Then run `/iadc-tester:setup` before the first `/generate-selenium-tests` — it writes this
+project's configuration, establishes the Test repo's Gradle build and commits the Appian Selenium
+API jar it compiles against, and hands off to `/iadc-graph:setup` for the graph connection. Run it
+again later if `/generate-selenium-tests` reports the Test repo hasn't been through it yet.
 
 ## Addressing the graph skill
 

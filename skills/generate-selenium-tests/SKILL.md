@@ -1,13 +1,10 @@
 ---
 name: generate-selenium-tests
-description: Sync Appian Selenium tests with a Jira ticket's requirements — updates existing test files where their feature already has one, and creates new JUnit test files where it doesn't. Use when the user gives a Jira ticket key and asks to sync, update, or reconcile tests with a ticket (e.g. "sync tests for IV-201", "update the test suite for the new Isaac Sandbox requirements"). The Appian application is determined automatically from the ticket's Jira project — the user does not need to name it. Internally invokes the iadc-graph skill to build a dependency graph of the relevant interface(s) before pulling any SAIL source, so the SAIL trace is scoped by the actual App Graph rather than discovered ad hoc.
+description: Sync Appian Selenium tests with a Jira ticket's requirements — updates existing test files where their feature already has one, and creates new JUnit test files where it doesn't. Use when the user gives a Jira ticket key and asks to sync, update, or reconcile tests with a ticket (e.g. "sync tests for IV-201", "update the test suite for the new Isaac Sandbox requirements"). The Appian application is read from this project's own configuration, not resolved from the ticket — the user does not need to name it. Internally invokes the iadc-graph skill to build a dependency graph of the relevant interface(s) before pulling any SAIL source, so the SAIL trace is scoped by the actual App Graph rather than discovered ad hoc.
 argument-hint: [jira-ticket-key]
 ---
 
 $1 is the Jira ticket
-
-Repo: michael-tulino/AutomatedTesting
-Branch: main
 
 This skill reconciles a Jira ticket's requirements against the existing test
 suite: matching requirements get left alone, new non-conflicting requirements
@@ -18,11 +15,38 @@ straightforward new-test generation.
 
 Steps:
 
-1. Pull the acceptance criteria for $1 via the Atlassian MCP connector. As
-   part of this same lookup, also retrieve the ticket's Jira project (key and
-   name) — this identifies which board/application area the ticket belongs
-   to, and is used in step 2 to resolve the Appian application without the
-   user needing to name it.
+0. Resolve this project's configuration before doing anything else. Every value below
+   resolves the same way — environment variable, then `docs/agents/tester.md` (or
+   `docs/agents/tester.local.md` for the one machine-specific value), then ask the user —
+   per the family's per-project-state convention. Check the environment variable for each
+   value **first, before touching either file**: a pipeline run may set every one of the
+   eight this way, with no repo to read and no user to ask, and that is a complete
+   resolution on its own — proceed without either file existing. Only for a value with no
+   environment variable set, read the matching file; a placeholder left standing (`<...>`)
+   means it's still unset there. Only once *both* tiers have failed for a value is it time
+   to ask the user — and only then, if neither config file exists at all, tell them to run
+   `/iadc-tester:setup` first rather than answering one field at a time.
+
+   - **Application UUID** — env `TEST_APPLICATION_UUID`, then `tester.md`.
+   - **Test repo** — env `TEST_REPO`, then `tester.md`. The git repository holding the
+     generated test files.
+   - **Branch** — env `TEST_BRANCH`, then `tester.md`. The branch in the Test repo that
+     generated files are pushed to.
+   - **Test site URL** — env `TEST_SITE_URL`, then `tester.md`.
+   - **Site web address** — env `IADC_SITE_URL`, then `tester.md`. The site's internal
+     web address, used for `navigateToSite` once signed in.
+   - **Test username** — env `TEST_USERNAME`, then `tester.md`.
+   - **Site version** — env `TEST_SITE_VERSION`, then `tester.md`.
+   - **Harness path** — env `TEST_HARNESS_PATH`, then `tester.local.md` (this one is
+     machine-specific, not `tester.md`). The absolute filesystem path to the extracted
+     Appian Selenium API distribution — read in step 6 for its Javadoc and
+     `ExampleProjects` reference material only. Not needed to compile: generated tests
+     compile against `appian-selenium-api.jar`, committed in the Test repo by
+     `/iadc-tester:setup` (see step 8).
+
+   `TEST_BROWSER`, `TEST_SITE_LOCALE` and `TEST_TIMEOUT` are not per-client — see step 6.
+
+1. Pull the acceptance criteria for $1 via the Atlassian MCP connector.
    Group the acceptance criteria into features, where a feature is a single application +
    workflow/action combination (e.g. "Add Rule in the Isaac Sandbox
    application," "Update Rule in the Isaac Sandbox application"). All
@@ -36,50 +60,56 @@ Steps:
    field/button/component's presence or absence, see references/sail-tracing.md
    for how that differs from a requirement that only implies existence.
 
-2. Use listApplications to get the full list of Appian applications, then
-   determine which application the ticket's Jira project (from step 1)
-   corresponds to. The Jira project name may be an abbreviation or partial
-   match of the actual Appian application name (e.g., a Jira project called
-   "IADC v2" may correspond to an Appian application named "Ignyte Appian
-   Developer Copilot") — do not assume an exact string match. Use reasonable
-   matching (initials, partial name overlap, obvious abbreviation) to
-   identify the correct application. If more than one application is a
-   plausible match, or none are, stop and ask which application to use
-   rather than guessing.
+2. Use the application UUID resolved in step 0.
 
    2a. **Build the dependency graph before pulling any SAIL.** Once the
-       application is confirmed, invoke the `iadc-graph:iadc-graph` skill
+       application UUID is in hand, invoke the `iadc-graph:iadc-graph` skill
        (the doubled name is correct — it is the skill `iadc-graph` inside
        the plugin `iadc-graph`) to build the
        dependency graph for this application's relevant interface(s) —
        follow iadc-graph's own SKILL.md for its full sequence and reference
        files; do not skip or reorder any of it, and do not shortcut
        straight to a query tool. The only thing this skill overrides:
-       when seeding, pass this ticket's already-resolved application UUID
-       (from above) as the `application_uuid` argument directly, rather
-       than reading it from iadc-graph's own Configuration block — that
-       block is only a fallback default for when iadc-graph is invoked
-       standalone with no UUID already in hand, which isn't the case here.
-       Once seeded, resolve each relevant interface (from listInterfaces
-       below) to a graph node and walk its dependencies (sub-interfaces,
-       rules, record types, constants) per iadc-graph's own instructions.
-       This dependency set is what guides step 2b below: it tells you
-       which objects actually need a getInterface (or equivalent) call,
-       instead of discovering references ad hoc while reading SAIL text.
+       when seeding, pass this project's application UUID (from step 0) as
+       the `application_uuid` argument directly. If seeding fails because the
+       `iadc` MCP server isn't configured yet, tell the user to run
+       `/iadc-graph:setup` — that's the fix; nothing here works around it.
+       Once seeded, use `list_nodes` — the structural-filter tool, and the
+       direct replacement for the old `listInterfaces` call — to resolve
+       the interface(s) relevant to each feature identified in step 1 to
+       their graph nodes (`find_nodes` is iadc-graph's other discovery
+       tool, for locating one already-named node by search — not what this
+       enumeration needs). From there, walk each interface's dependencies
+       (sub-interfaces, rules, record types, constants) per iadc-graph's
+       own instructions. This dependency set is what step 2b reads SAIL
+       for.
 
-   2b. Use listInterfaces scoped to that application's UUID. Call
-       getInterface on the interface(s) relevant to each feature identified
-       in step 1 **and on every additional node 2a's graph identified as a
-       dependency of those interfaces** (sub-interfaces, referenced rules,
-       record types feeding grid/field values). Read the full SAIL source
-       returned, not just field/component/label names — see
+   2b. Read SAIL for every node in 2a's dependency set: `get_sail` for the
+       interface(s), sub-interfaces, rules, and constants — a constant's
+       own SAIL is typically empty, which is a real, expected answer there,
+       not a failure. For a record type, use `record_model` instead: what a
+       grid or field actually draws its values from is that record type's
+       fields, views, actions and relationships, and `record_model` is the
+       one-call read for exactly that substructure — `get_sail` doesn't
+       return it. Read the full SAIL source returned, not just
+       field/component/label names — see
        references/sail-tracing.md for how to trace rendered values,
        editability, and structural/behavioral grid properties (pagination,
        sort order, etc.), using 2a's dependency list as the scope and
        order for that trace rather than re-discovering references by
        re-reading SAIL top to bottom.
 
-3. Search the michael-tulino/AutomatedTesting repo (via the GitHub MCP
+3. Before searching, confirm this Test repo is actually ready to compile what this skill is about
+   to push: check whether `build.gradle` exists at its root, on the Branch resolved in step 0 (via
+   the GitHub MCP connector's file-read tool). If it doesn't, this Test repo hasn't been through
+   `/iadc-tester:setup`'s build establishment (its step 4) — including a Test repo this plugin
+   pushed tests into before IV-368, which may still hold root-level `.java` files that this skill's
+   own `src/test/java/autogen/` layout (step 8) would exclude from the build once one exists. Stop
+   here and tell the user to run `/iadc-tester:setup` first, the same way step 0 above already does
+   when neither config file exists — pushing now would still land files that can't compile, the
+   exact defect IV-368 exists to fix.
+
+   Search the Test repo resolved in step 0, on the Branch resolved in step 0 (via the GitHub MCP
    connector) for existing test files relevant to each feature from step 1.
    Match by content, not just filename — a file's class name, business-
    description comment, and existing `@Test` methods are more reliable
@@ -91,7 +121,7 @@ Steps:
        *all* of this feature's requirements go there — do not split one
        feature's requirements across multiple files.
      - If no existing file covers it → it needs a new file, created the same
-       way as steps 4-9 of a from-scratch test generation (scaffold, constants,
+       way as step 6 of a from-scratch test generation (scaffold, constants,
        `@BeforeAll`/`@AfterAll`, one or more `@Test` methods, cleanup).
    Most tickets describe a single feature and resolve entirely to one file
    (either one existing file to edit, or one new file to create). A ticket
@@ -101,10 +131,11 @@ Steps:
    own target independently, rather than defaulting to a single file for the
    whole ticket.
 
-4. For every existing file identified as a target in step 3, pull it into the
-   current directory (via the GitHub MCP connector's file-read/download
-   tool) and read it in full before making any edit. Do not edit a file you
-   have not fully read. Make sure the file is saved in the current directory before moving on.
+4. For every existing file identified as a target in step 3, pull it from the
+   Test repo on the Branch resolved in step 0 into the current directory (via
+   the GitHub MCP connector's file-read/download tool) and read it in full
+   before making any edit. Do not edit a file you have not fully read. Make
+   sure the file is saved in the current directory before moving on.
 
 5. For each feature whose target is an existing file, reconcile the ticket's
    requirements against what the file already does. See
@@ -147,26 +178,31 @@ Steps:
    process as generating a test from scratch:
      - Create the empty file as (testname/description).java in the current
        directory, named to match its public class.
-     - Read the Appian Selenium API reference materials at
-       C:\Users\tulin\Downloads\Ignyte\Appian Selenium API Combined Files 5302025
-       — the ExampleProjects\appian-selenium-api-example-java folder for
-       usage patterns, and the Javadoc\ folder for the full list of
+     - Read the Appian Selenium API reference materials at the Harness path
+       resolved in step 0 — the ExampleProjects/appian-selenium-api-example-java
+       folder for usage patterns, and the Javadoc/ folder for the full list of
        available methods. Confirm methods against the Javadoc rather than
        assuming; confirm whether the fixture exposes an editability check —
        see references/field-editability.md.
+     - Declare `package autogen;` as the file's first line — the fixed package every
+       generated test uses, matching the `src/test/java/autogen/` layout
+       `/iadc-tester:setup` establishes in the Test repo (step 8 pushes there).
      - Structure it as a JUnit 5 test class: `private static SitesFixture
        fixture;` field, a `@BeforeAll` static setup method (construct,
        configure, log in), an `@AfterAll` static teardown method
        (`fixture.tearDown()`). No `main` method, no manual try/finally.
-     - Always use these exact values for the setup constants — do not
+     - Use the values resolved in step 0 for these setup constants — do not
        substitute, guess, or invent alternatives regardless of what the
        ticket or application name might suggest:
-       - `TEST_SITE_URL = "https://ignytedemo.appiancloud.com/suite"`
-       - `IADC_SITE_URL = ` You need to fill this in with the correct url extention (used for navigation once signed in, via `navigateToSite`).
-       - `TEST_USERNAME = "automated.tester"` (the only username confirmed
+       - `TEST_SITE_URL` — the Test site URL.
+       - `IADC_SITE_URL` — the Site web address (used for
+         navigation once signed in, via `navigateToSite`).
+       - `TEST_USERNAME` — the Test username (the only username confirmed
          to have a matching entry in `users.properties`).
-       - `TEST_BROWSER = "CHROME"`, `TEST_SITE_VERSION = "24.3"`,
-         `TEST_SITE_LOCALE = "en_US"`, `TEST_TIMEOUT = 60`.
+       - `TEST_SITE_VERSION` — the Site version.
+
+       These three are not per-client — always use exactly these values:
+       `TEST_BROWSER = "CHROME"`, `TEST_SITE_LOCALE = "en_US"`, `TEST_TIMEOUT = 60`.
      - Group related criteria into one `@Test` method where they verify the
        same underlying save/output; only split into separate `@Test`
        methods for genuinely distinct behaviors or outcomes.
@@ -226,11 +262,17 @@ Steps:
    files, everything that wasn't supposed to change is still intact exactly
    as it was pulled in step 4.
 
-8. Save each file (new or edited) then push it to the root of
-   michael-tulino/AutomatedTesting on the main branch, using the GitHub MCP
-   server's file creation/update tool. Push each file individually so an
-   edited file updates its existing repo entry rather than creating a
-   duplicate.
+8. Save each file (new or edited) then push it to `src/test/java/autogen/` in
+   the Test repo resolved in step 0, on the Branch resolved in step 0, using the GitHub MCP
+   server's file creation/update tool — not the repo root. `/iadc-tester:setup` establishes
+   a Gradle build there whose default test source set is `src/test/java`; every generated
+   file's own `package autogen;` (step 6) supplies the rest of the path, so this is where it
+   must land to compile. Push each file individually so an edited file updates its existing
+   repo entry rather than creating a duplicate — true once `/iadc-tester:setup`'s own step 4
+   has relocated any file this plugin generated before IV-368 out of the Test repo's root. Until
+   that has run against this Test repo, a root-level file step 3 matched by content and this step
+   then pushes here lands as a second copy, not an update — the same feature in two places, not a
+   duplicate feature — and both copies need reconciling by hand.
 
 Constraints:
 - Do not run the tests.

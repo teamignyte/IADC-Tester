@@ -1,0 +1,73 @@
+// appian-selenium-api.jar (lib/appian/) is a committed binary, not a build-time download. It has
+// no Maven Central artifact -- the vendor distributes it only as a generic package on GitLab -- so
+// /iadc-tester:setup downloads it once and this repo tracks it from then on. That is what lets a
+// fresh clone compile with no network access, no login and no per-developer download for this one
+// dependency (IV-368).
+//
+//   Source:  https://gitlab.com/appian-oss/appian-selenium-api (Apache License 2.0)
+//   Pinned:  FCS/20260725 -- 367,045 bytes, sha256
+//            80dcc7560f026aba27bc74de5a242eef4d1e80e5350e465e91a83aa55cdcece8
+//   URL:     https://gitlab.com/api/v4/projects/appian-oss%2Fappian-selenium-api/packages/generic/FCS/20260725/appian-selenium-api.jar
+//
+// A maintainer moving to a newer release must update the version in the URL above AND both the
+// size and sha256 -- /iadc-tester:setup's step 4 checks the committed jar against these numbers,
+// not just its presence, so a stale jar in an existing Test repo gets replaced on the next setup
+// run instead of silently kept forever.
+//
+// Generated tests declare `package autogen;` and must live under src/test/java/autogen/ to
+// compile against it -- Gradle's `java` plugin defaults its test source set to src/test/java, so
+// no explicit sourceSets block is needed here; the package statement supplies the rest of the path.
+//
+// The jar is thin -- it bundles only com.appiancorp.* classes, nothing under org/ -- so everything
+// below in `dependencies` is what it actually needs at compile and run time, not guessed: the same
+// versions the vendor's own build.gradle used to build this exact jar (FCS/20260725, commit
+// 47a26b6f324b59b6a082b2ba50d601eb265e1467 in the upstream repo above).
+//
+// Everything here is `testImplementation`, not `implementation`: this repo has no src/main/java --
+// every generated file is a test under src/test/java/autogen/ -- so nothing is ever compiled
+// outside the test source set.
+//
+// sourceCompatibility/targetCompatibility below, not a toolchain block: this compiles on any JDK
+// 11 or newer already installed locally -- Selenium 4.13 sets that same floor -- with no toolchain
+// auto-provisioning and no network needed just to obtain a matching JDK. mavenCentral() below still
+// needs network on a cold dependency cache; that was never what this ticket removed, only the
+// Appian jar's manual download was.
+//
+// To build: `gradle test` from this directory compiles and runs everything under
+// src/test/java/autogen/. Requires a JDK 11+ and Gradle itself installed locally -- this repo
+// ships no wrapper. `gradle compileTestJava` checks compiling alone, with no live site needed.
+
+plugins {
+    id 'java'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation fileTree(dir: 'lib/appian', include: ['*.jar'])
+
+    testImplementation 'com.fasterxml.jackson.core:jackson-annotations:2.18.3'
+    testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
+    testImplementation 'com.google.code.gson:gson:2.12.1'
+    testImplementation 'com.jayway.jsonpath:json-path:2.9.0'
+    testImplementation 'commons-codec:commons-codec:1.18.0'
+    testImplementation 'commons-io:commons-io:2.18.0'
+    testImplementation 'org.slf4j:slf4j-api:2.0.17'
+    testImplementation 'org.apache.logging.log4j:log4j-core:2.24.3'
+    testImplementation 'org.apache.commons:commons-lang3:3.17.0'
+    testImplementation 'org.json:json:20250107'
+    testImplementation 'org.seleniumhq.selenium:selenium-java:4.13.0'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.0'
+}
+
+test {
+    useJUnitPlatform()
+}
