@@ -4,6 +4,7 @@ on:
   push:
   pull_request:
 
+# This job only reads the repository; declaring it here rather than relying on a repository setting keeps the two workflows identical in effect.
 permissions:
   contents: read
 

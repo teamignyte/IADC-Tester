@@ -14,6 +14,10 @@ import pytest
 from conftest import SKILLS_DIR, read_frontmatter
 
 SKILL_DIRS = sorted((p for p in SKILLS_DIR.iterdir() if p.is_dir()), key=lambda p: p.name)
+assert SKILL_DIRS, (
+    f"no skill directories found under {SKILLS_DIR} -- an empty skills/ would otherwise make "
+    "the parametrized check below collect zero tests and silently pass nothing"
+)
 
 
 @pytest.mark.parametrize("skill_dir", SKILL_DIRS, ids=lambda p: p.name)
