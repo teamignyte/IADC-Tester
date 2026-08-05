@@ -115,10 +115,10 @@ assumes it — this skill doesn't configure or check that connector any more tha
 
 - Do `build.gradle` and `settings.gradle` already exist at the Test repo's root on the Branch? If
   so, leave them alone — don't re-fetch or overwrite anything a maintainer may have hand-edited.
-- Does `lib/appian/appian-selenium-api.jar` exist there, **and does it match the pinned size and
-  sha256 below** — not existence alone. A same-named file that doesn't match is either corrupt
-  (e.g. written through a path that mangled it as text) or left over from an older pin; either way
-  it needs replacing, not skipping.
+- Does `lib/appian/appian-selenium-api.jar` exist there, **and does it match the pin file below** —
+  not existence alone. A same-named file that doesn't match is either corrupt (e.g. written through
+  a path that mangled it as text) or left over from an older pin; either way it needs replacing, not
+  skipping.
 
 All three present and matching means a prior run (or a maintainer) already did this — say so and go
 straight to the root-level check below. Otherwise, fill in whatever's missing or mismatched:
@@ -132,38 +132,42 @@ straight to the root-level check below. Otherwise, fill in whatever's missing or
   https://gitlab.com/api/v4/projects/appian-oss%2Fappian-selenium-api/packages/generic/FCS/20260725/appian-selenium-api.jar
   ```
 
-  This URL needs **no authentication** — it's a public package on a public project. **Pinned:
-  `FCS/20260725`, `367,045` bytes, sha256
-  `80dcc7560f026aba27bc74de5a242eef4d1e80e5350e465e91a83aa55cdcece8`.** A maintainer moving to a
-  newer release edits the version in the URL *and every place the size and sha256 are repeated* —
-  the pin statement here, the confirm-after-push instruction later in this same bullet, step 8's
-  Verify check, and `build.gradle.template`'s header comment — the same lag-never-lead pinning the
-  family already uses for the mirrored graph skill (never track "latest"). Missing any one of them
-  would defeat the check above: matching size/hash is what lets an existing Test repo's *next* setup
-  run notice its jar is now stale and replace it, instead of either a stale number passing against
-  itself or a correctly-updated jar failing a check that never got updated.
+  This URL needs **no authentication** — it's a public package on a public project. The
+  authoritative pin — version, byte count, sha256 — lives in exactly one place:
+  [`appian-selenium-api.jar.pin`](./appian-selenium-api.jar.pin), which the integrity-check script
+  below reads. Two places still *state* the same numbers for a reader who won't run the script —
+  this URL (the version is part of the URL path itself) and `build.gradle.template`'s header
+  comment, at the point a Test-repo reader who may never see this skill's prose will actually find
+  it — and a test (`tests/test_jar_pin_consistency.py`) asserts both agree with the pin file, so an
+  edit to one without the others fails CI instead of silently drifting. A maintainer moving to a
+  newer release edits the pin file first, then the URL and `build.gradle.template`'s header comment
+  to match — the same lag-never-lead pinning the family already uses for the mirrored graph skill
+  (never track "latest").
 
-  **Verify the download's sha256 before pushing anything.** Compute the sha256 of the file just
-  downloaded and compare it to the pinned value above — size alone is not an integrity check: a
-  tampered file padded to the same length still passes it, which is the whole reason a sha256 is
-  pinned here at all. Run whichever hash command the client machine actually has:
-  `sha256sum appian-selenium-api.jar` in a POSIX shell (Linux, WSL, Git Bash) — but `sha256sum`
-  itself is not universally present, so on macOS use `shasum -a 256 appian-selenium-api.jar`
-  instead (macOS ships Perl's `shasum`, not GNU coreutils), and on native Windows (`cmd.exe` or
-  PowerShell, outside WSL) use `certutil -hashfile appian-selenium-api.jar SHA256`, which needs
-  nothing installed beyond Windows itself — but unlike `sha256sum`'s bare `<hash>  <file>` line,
-  `certutil` prints a labelled multi-line block (and on some older Windows builds, spaces the hex
-  into pairs), so compare only the hex digest itself, case-insensitively and with all whitespace
-  stripped, never the label lines or spacing verbatim.
+  **Verify the download's integrity before pushing anything.** Run the integrity-check script — it
+  computes the file's sha256 and compares it to the pin file, so this skill never has to teach a
+  hash command or an output format:
 
-  **On a mismatch, stop here — the whole run, not just this bullet:** don't push the file, don't
-  retry the download, and don't accept a size match as a substitute pass. Tell the user the pinned
-  sha256, the sha256 you actually computed, and that setup did not proceed, then stop: nothing else
-  in this skill runs this session, including the build file below and steps 5-9 — pushing
-  `build.gradle`/`settings.gradle` next would leave the Test repo's build pointing at a jar that was
-  never pushed, a worse state than this step never having run at all. Only once the sha256 matches,
-  push the downloaded file to `lib/appian/appian-selenium-api.jar` in the Test repo, on the Branch,
-  with the GitHub MCP connector's file creation/update tool.
+  ```
+  bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/check-jar-integrity" appian-selenium-api.jar \
+    "${CLAUDE_PLUGIN_ROOT}/skills/setup/appian-selenium-api.jar.pin"
+  ```
+
+  Exit `0` means the sha256 matched — continue below. Any other exit is a hard stop, covered next;
+  the script's stdout is the reason, show it to the user verbatim rather than restating it. This
+  needs a Bash-tool session (Git Bash, WSL, or a native Unix shell) to run — if this session has no
+  Bash tool at all (native Windows without Git Bash), stop here and tell the user Git Bash is
+  required before this check, and this setup, can run; don't fall back to a hash command run by
+  hand.
+
+  **On a nonzero exit, stop here — the whole run, not just this bullet:** don't push the file,
+  don't retry the download, and don't accept a size match as a substitute pass — the script has no
+  code path that would let you. Show the user the script's stdout, then stop: nothing else in this
+  skill runs this session, including the build file below, the root-level `.java` sweep below, and
+  steps 5-9 — pushing `build.gradle`/`settings.gradle` next would leave the Test repo's build
+  pointing at a jar that was never pushed, a worse state than this step never having run at all.
+  Only on exit `0`, push the downloaded file to `lib/appian/appian-selenium-api.jar` in the Test
+  repo, on the Branch, with the GitHub MCP connector's file creation/update tool.
 
   **This is a committed binary, deliberately.** The alternative — a developer downloading it by
   hand, onto a machine-specific path nothing else can see — is the defect IV-368 removes. Committing
@@ -173,15 +177,34 @@ straight to the root-level check below. Otherwise, fill in whatever's missing or
 
   A binary written through a text/UTF-8 path comes out corrupt but still *exists*, so "the file is
   there" doesn't confirm the push worked. Where the GitHub MCP connector's tools expose a size
-  without a full download, use that for the byte count — but there is no equivalent shortcut for the
-  hash: what that connector exposes for a file's content is a git blob **SHA-1** (hashed over `blob
-  <len>\0<bytes>`), never the sha256 pinned here, so the two are never comparable. Pull the content
-  back instead — the same way `generate-selenium-tests` step 4 already pulls existing test files —
-  decode it, and hash the decoded bytes with the same command used above (`sha256sum` / `shasum -a
-  256` / `certutil -hashfile`, same normalization rule). Confirm `367,045` bytes **and that hash
-  matches the pinned sha256** before treating this bullet as done — size alone would miss a push
-  that corrupted content without changing its length, and reporting a match without having computed
-  a comparable hash leaves exactly that kind of corruption undetected.
+  without a full download, use that for a first-glance byte count — but there is no equivalent
+  shortcut for the hash: what that connector exposes for a file's content is a git blob **SHA-1**
+  (hashed over `blob <len>\0<bytes>`), never the sha256 pinned here, so the two are never
+  comparable. Pull the content back instead — the same way `generate-selenium-tests` step 4 already
+  pulls existing test files. The connector returns file content **base64-encoded** (GitHub's own
+  API contract, not this plugin's choice); that text is safe to carry through any text-based tool,
+  including a heredoc. **Decode it to a temp file with a byte-safe shell redirect — never the
+  model's own file-write tool**, which is exactly the text/UTF-8 path this paragraph opened with:
+
+  ```
+  base64 -d > /tmp/pulled-appian-selenium-api.jar <<'IADC_TESTER_B64'
+  <paste the exact base64 content the connector returned, unmodified>
+  IADC_TESTER_B64
+  ```
+
+  Then run the same script against the temp file, with the same pin file:
+
+  ```
+  bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/check-jar-integrity" \
+    /tmp/pulled-appian-selenium-api.jar "${CLAUDE_PLUGIN_ROOT}/skills/setup/appian-selenium-api.jar.pin"
+  ```
+
+  Exit `0` is what confirms the push worked — size alone would miss a push that corrupted content
+  without changing its length, and this is the one check with no equivalent shortcut. On a nonzero
+  exit here, the push already happened but produced bad content: stop, show the user the script's
+  stdout, and say the Test repo's `lib/appian/appian-selenium-api.jar` needs re-pushing before this
+  bullet can be treated as done — don't run the build file bullet, the root-level `.java` sweep
+  below, or steps 5-9 this session.
 
 - **The build file.** Push `skills/setup/build.gradle.template`'s content, unedited, to
   `build.gradle` in the Test repo, on the Branch, and `skills/setup/settings.gradle.template`'s
@@ -190,8 +213,9 @@ straight to the root-level check below. Otherwise, fill in whatever's missing or
   dependency versions inside are measured against the vendor's own build of this exact jar, not
   guessed; changing them here would silently drop that guarantee.
 
-**Then, regardless of whether either check above found anything to do, list the Test repo's root
-on the Branch** for `.java` files sitting directly there. Nothing before this ticket ever pushed a file anywhere
+**Reaching this point means the jar's integrity check did not stop the run above.** Whether or not
+the jar or the build file actually needed writing, now list the Test repo's root on the Branch for
+`.java` files sitting directly there. Nothing before this ticket ever pushed a file anywhere
 else in this repo, so each is presumed to be a test this plugin generated before IV-368 and is now
 silently excluded from the build for the reason above — but confirm that from its content rather
 than deleting on the presumption alone. For each:
@@ -283,12 +307,18 @@ call setup done:
   this file was never written (step 5) — nothing to check.
 - With the GitHub MCP connector's file-read tool, confirm `build.gradle` and `settings.gradle`
   exist at the Test repo's root on the Branch, and that `lib/appian/appian-selenium-api.jar` exists
-  there at `367,045` bytes. Confirm its sha256 too, the same way as step 4's jar bullet: pull its
-  content back, decode it, and hash the decoded bytes with `sha256sum` / `shasum -a 256` /
-  `certutil -hashfile` (same normalization rule), comparing against the pinned value — the
-  file-read tool's own metadata exposes only a git blob SHA-1, never a sha256, so it cannot answer
-  this by itself. Step 4 claiming to have written or found them isn't the same as them being there,
-  and existence or size alone would miss a binary corrupted or tampered with in transit.
+  there. Confirm its sha256 too, the same way as step 4's post-push confirmation: pull its content
+  back, decode the base64 to a temp file with a byte-safe shell redirect, and run
+
+  ```
+  bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/check-jar-integrity" \
+    <temp-file> "${CLAUDE_PLUGIN_ROOT}/skills/setup/appian-selenium-api.jar.pin"
+  ```
+
+  against it — the file-read tool's own metadata exposes only a git blob SHA-1, never a sha256, so
+  it cannot answer this by itself. Step 4 claiming to have written or found them isn't the same as
+  them being there, and existence alone would miss a binary corrupted or tampered with in transit;
+  only the script's exit `0` does.
 - Confirm no `.java` file remains at the Test repo's root unless step 7 already accounts for it —
   moved in step 4, listed there as needing manual removal, or listed there as left in place because
   it didn't match the generated-test signal, not silently unaccounted for.

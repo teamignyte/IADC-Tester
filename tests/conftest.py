@@ -18,6 +18,9 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PLUGIN_JSON = REPO_ROOT / ".claude-plugin" / "plugin.json"
 SKILLS_DIR = REPO_ROOT / "skills"
+SETUP_SKILL_DIR = SKILLS_DIR / "setup"
+CHECK_JAR_INTEGRITY = SETUP_SKILL_DIR / "scripts" / "check-jar-integrity"
+JAR_PIN_FILE = SETUP_SKILL_DIR / "appian-selenium-api.jar.pin"
 
 
 def read_frontmatter(skill_md_path: Path) -> dict:
@@ -47,3 +50,21 @@ def read_frontmatter(skill_md_path: Path) -> dict:
 @pytest.fixture(scope="session")
 def plugin_manifest() -> dict:
     return json.loads(PLUGIN_JSON.read_text(encoding="utf-8"))
+
+
+def read_pin_file(pin_path: Path = JAR_PIN_FILE) -> dict:
+    """Parse a flat KEY=VALUE pin file (comments start with '#') into a dict.
+
+    Mirrors the shell parsing `scripts/check-jar-integrity` itself does with `grep`/`cut` — this
+    is the Python-side reader tests use to assert every other stated copy of the pin (the download
+    URL in SKILL.md, build.gradle.template's header comment) agrees with the one authoritative
+    source (IV-394, family ADR 0011's "one authoritative source, everything else is a copy").
+    """
+    values: dict[str, str] = {}
+    for line in pin_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip()] = value.strip()
+    return values

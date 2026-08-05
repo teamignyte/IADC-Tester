@@ -22,7 +22,7 @@ ad hoc.
 ```
 .claude-plugin/plugin.json          the manifest
 skills/generate-selenium-tests/     SKILL.md + references/
-skills/setup/                       SKILL.md + config templates
+skills/setup/                       SKILL.md, config templates, the jar integrity-check script and pin
 ```
 
 `skills/` is **auto-discovered** — it is deliberately not declared in `plugin.json`. Declaring

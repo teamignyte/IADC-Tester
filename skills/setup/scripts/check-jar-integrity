@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+# check-jar-integrity -- IV-394 (family ADR 0011: scripts replace prose once a check clears the
+# viability test). Computes a file's sha256 and compares it to a pinned value, so
+# skills/setup/SKILL.md no longer has to teach a model how to pick among sha256sum, shasum and
+# certutil, or how to reconcile their three different output formats.
+#
+# This is invoked, not executed: skills/setup/SKILL.md's prose runs it as
+#   bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/check-jar-integrity" <file> <pin-file>
+# -- `bash <path>` is the dispatcher (PATH-resolved, so it finds whichever bash the model's Bash
+# tool is actually backed by: Git Bash on Windows, WSL, or a native Unix shell), not a hardcoded
+# interpreter path baked into this file. That is a different problem from a Claude Code *hook*'s
+# dispatch (see IADC-Advisor's hooks/run-hook.cmd, IV-392 / ADR 0012): a hook's command line is
+# chosen by Claude Code itself with no model in the loop, which is why that dispatcher has to be a
+# bash/cmd.exe polyglot. A skill script is invoked by the model's own Bash tool call, and the model
+# only ever has that tool available when a bash-compatible shell already backs it -- so `bash
+# <path>` is already portable here without a second, cmd.exe- or PowerShell-flavoured file. See
+# SKILL.md for what a model with no Bash tool at all (native Windows, no Git Bash) is told to do
+# instead: stop and say so, not fall back to ad hoc platform-specific hash commands.
+#
+# Extensionless on purpose (the same portability rule): a `.sh` name is what triggers Claude Code's
+# Windows-launcher auto-prepend behaviour documented in ADR 0012, which this file's own explicit
+# `bash` prefix would then collide with.
+#
+# Exit codes -- the machine-readable result:
+#   0  sha256 matches the pinned value               -- proceed
+#   1  sha256 was computed but does not match         -- hard stop, never proceed
+#   2  could not determine an answer (missing file, missing/malformed pin, no hash tool found)
+#      -- hard stop, never proceed
+# Stdout is the human-readable reason in every case. SKILL.md's prose states what each exit code
+# obliges it to do next -- this script only ever reports, it never decides whether to push.
+#
+# Usage:
+#   check-jar-integrity <file> <pin-file>
+#   check-jar-integrity --normalize-digest        (reads one blob of hash-command output on
+#                                                    stdin, prints the normalized 64-char lowercase
+#                                                    hex digest it found, exits 0; exit 1 if none
+#                                                    was found -- a debug/test entry point onto the
+#                                                    same normalizer the main path uses, so the
+#                                                    normalizer is testable without constructing a
+#                                                    full pin file and fixture pair for every case)
+#
+# Pin file format (see ../appian-selenium-api.jar.pin): flat KEY=VALUE lines, only SHA256= is load-
+# bearing here; VERSION= and SIZE= are read for informational stdout only. A size match is never
+# accepted as a substitute for a hash match -- this script has no code path that would let one.
+
+set -uo pipefail
+
+# normalize_digest: read one blob of text on stdin that is assumed to contain, somewhere in it, a
+# 64-hex-character sha256 digest -- possibly wrapped in a label ("SHA256 hash of x:" / "CertUtil:
+# -hashfile command completed successfully."), possibly with the hex spaced into pairs (some older
+# Windows certutil builds), possibly uppercase, possibly followed by "  <filename>" (sha256sum's own
+# bare output format). Strips every whitespace character first, which reunites hex spaced into
+# pairs into one run and leaves label text broken into short runs by its own non-hex characters (a
+# hex-valid letter run inside a label is never 64 characters long in practice -- see the four
+# constructed fixtures in tests/test_check_jar_integrity.py for the cases this is proven against).
+# Finds the first run of 64-or-more consecutive hex characters and prints its first 64, lowercased.
+# Prints nothing and returns 1 if no such run exists.
+normalize_digest() {
+    local blob run
+    blob="$(tr -d '[:space:]')"
+    run="$(printf '%s' "$blob" | grep -oE '[0-9a-fA-F]{64,}' | head -n1)"
+    if [ -z "$run" ]; then
+        return 1
+    fi
+    printf '%s' "${run:0:64}" | tr 'A-F' 'a-f'
+}
+
+if [ "${1:-}" = "--normalize-digest" ]; then
+    if digest="$(normalize_digest)"; then
+        echo "$digest"
+        exit 0
+    fi
+    echo "no 64-character hex digest found in input" >&2
+    exit 1
+fi
+
+if [ "$#" -ne 2 ]; then
+    echo "usage: check-jar-integrity <file> <pin-file>" >&2
+    echo "       check-jar-integrity --normalize-digest   (reads stdin)" >&2
+    exit 2
+fi
+
+target_file="$1"
+pin_file="$2"
+
+if [ ! -f "$pin_file" ] || [ ! -r "$pin_file" ]; then
+    echo "ERROR: pin file not found or not readable: $pin_file"
+    exit 2
+fi
+
+pinned_sha256_raw="$(grep -E '^SHA256=' "$pin_file" | head -n1 | cut -d= -f2-)"
+pinned_version="$(grep -E '^VERSION=' "$pin_file" | head -n1 | cut -d= -f2-)"
+pinned_size="$(grep -E '^SIZE=' "$pin_file" | head -n1 | cut -d= -f2-)"
+
+if [ -z "$pinned_sha256_raw" ]; then
+    echo "ERROR: pin file $pin_file does not define SHA256="
+    exit 2
+fi
+
+if ! pinned_sha256="$(printf '%s' "$pinned_sha256_raw" | normalize_digest)"; then
+    echo "ERROR: pin file $pin_file's SHA256= value is not a recognizable sha256 digest"
+    exit 2
+fi
+
+if [ ! -f "$target_file" ] || [ ! -r "$target_file" ]; then
+    echo "ERROR: file not found or not readable: $target_file"
+    exit 2
+fi
+
+actual_size="$(wc -c < "$target_file" | tr -d '[:space:]')"
+
+# Absorb the platform variance here, once, instead of teaching a model to pick among these three
+# (plus openssl, not in the original prose, added because it costs nothing extra to try and is
+# widely present) -- this is the twelve lines of dispatch-and-reconcile prose IV-394 exists to
+# remove from SKILL.md.
+computed_raw=""
+if command -v sha256sum >/dev/null 2>&1; then
+    computed_raw="$(sha256sum "$target_file" 2>/dev/null)"
+elif command -v shasum >/dev/null 2>&1; then
+    computed_raw="$(shasum -a 256 "$target_file" 2>/dev/null)"
+elif command -v openssl >/dev/null 2>&1; then
+    computed_raw="$(openssl dgst -sha256 "$target_file" 2>/dev/null)"
+elif command -v certutil >/dev/null 2>&1; then
+    computed_raw="$(certutil -hashfile "$target_file" SHA256 2>/dev/null)"
+fi
+
+if [ -z "$computed_raw" ]; then
+    echo "ERROR: no sha256 tool found (tried sha256sum, shasum, openssl, certutil)"
+    exit 2
+fi
+
+if ! computed_sha256="$(printf '%s' "$computed_raw" | normalize_digest)"; then
+    echo "ERROR: could not extract a sha256 digest from the hash tool's output"
+    exit 2
+fi
+
+version_note=""
+if [ -n "$pinned_version" ]; then
+    version_note=" (release $pinned_version)"
+fi
+size_note=""
+if [ -n "$pinned_size" ]; then
+    size_note=", $actual_size bytes vs. pinned $pinned_size"
+fi
+
+if [ "$computed_sha256" = "$pinned_sha256" ]; then
+    echo "OK: $target_file sha256 matches the pinned value$version_note"
+    exit 0
+fi
+
+echo "MISMATCH: $target_file sha256 is $computed_sha256$size_note, pinned value is $pinned_sha256$version_note -- integrity check failed, do not proceed"
+exit 1
