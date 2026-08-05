@@ -123,6 +123,7 @@ def _hash_tool_dispatch_tokens() -> list:
     # certutil's flag is specific enough to give the mechanism away even without naming the tool
     # itself, so it's forbidden alongside the tool names -- also read from the script, not typed.
     flags = re.findall(r"certutil\s+(-\w+)", text)
+    assert flags, f"{CHECK_JAR_INTEGRITY} names no certutil flag to forbid"
     return tokens + flags
 
 

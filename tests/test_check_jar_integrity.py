@@ -48,8 +48,10 @@ def _minimal_path_with(tmp_path: Path, extra_tool_dirs: list[Path] | None = None
     tr, head, tail) plus whatever tool directories are listed first, so `command -v <tool>`
     genuinely fails for anything not explicitly provided rather than the branch merely going
     untested. `tail` matters here specifically: it's only reached by normalize_digest's "last"
-    mode, i.e. only by the certutil arm -- a PATH that omitted it would silently make every
-    certutil-branch test below exercise a different failure than the one it's named for."""
+    mode, i.e. only by the certutil arm -- a PATH that omitted it would still fail every
+    certutil-branch test below loudly (an exact-return-code assertion catches it), just for the
+    wrong reason: "could not extract a sha256 digest" instead of the mismatch or match each test
+    is actually named for."""
     import os
     import shutil
 
