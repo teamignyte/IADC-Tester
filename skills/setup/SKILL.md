@@ -181,7 +181,7 @@ straight to the root-level check below. Otherwise, fill in whatever's missing or
   256` / `certutil -hashfile`, same normalization rule). Confirm `367,045` bytes **and that hash
   matches the pinned sha256** before treating this bullet as done — size alone would miss a push
   that corrupted content without changing its length, and reporting a match without having computed
-  a comparable hash is the same gap this ticket exists to close.
+  a comparable hash leaves exactly that kind of corruption undetected.
 
 - **The build file.** Push `skills/setup/build.gradle.template`'s content, unedited, to
   `build.gradle` in the Test repo, on the Branch, and `skills/setup/settings.gradle.template`'s
