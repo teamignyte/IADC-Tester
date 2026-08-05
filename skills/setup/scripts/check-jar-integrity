@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # check-jar-integrity -- IV-394 (family ADR 0011: scripts replace prose once a check clears the
 # viability test). Computes a file's sha256 and compares it to a pinned value, so
-# skills/setup/SKILL.md no longer has to teach a model how to pick among sha256sum, shasum and
-# certutil, or how to reconcile their three different output formats.
+# skills/setup/SKILL.md no longer has to teach a model how to pick among sha256sum, shasum,
+# openssl and certutil, or how to reconcile their different output formats.
 #
 # This is invoked, not executed: skills/setup/SKILL.md's prose runs it as
 #   bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/check-jar-integrity" <file> <pin-file>
@@ -11,10 +11,12 @@
 # interpreter path baked into this file. That is a different problem from a Claude Code *hook*'s
 # dispatch (see IADC-Advisor's hooks/run-hook.cmd, IV-392 / ADR 0012): a hook's command line is
 # chosen by Claude Code itself with no model in the loop, which is why that dispatcher has to be a
-# bash/cmd.exe polyglot. A skill script is invoked by the model's own Bash tool call, and the model
-# only ever has that tool available when a bash-compatible shell already backs it -- so `bash
-# <path>` is already portable here without a second, cmd.exe- or PowerShell-flavoured file. See
-# SKILL.md for what a model with no Bash tool at all (native Windows, no Git Bash) is told to do
+# bash/cmd.exe polyglot. A skill script is invoked by the model's own Bash tool call, and every
+# session that has a Bash tool at all has a bash-compatible shell backing it -- so `bash <path>` is
+# already portable there without a second, cmd.exe- or PowerShell-flavoured file. A session with no
+# Bash tool at all is a real state on Windows -- not only when Git Bash isn't installed, but also
+# when it is installed and just not discovered (Claude Code's `CLAUDE_CODE_GIT_BASH_PATH` env var
+# exists precisely to point it at one that is). See SKILL.md for what that session is told to do
 # instead: stop and say so, not fall back to ad hoc platform-specific hash commands.
 #
 # Extensionless on purpose (the same portability rule): a `.sh` name is what triggers Claude Code's
@@ -31,13 +33,16 @@
 #
 # Usage:
 #   check-jar-integrity <file> <pin-file>
-#   check-jar-integrity --normalize-digest        (reads one blob of hash-command output on
-#                                                    stdin, prints the normalized 64-char lowercase
-#                                                    hex digest it found, exits 0; exit 1 if none
-#                                                    was found -- a debug/test entry point onto the
-#                                                    same normalizer the main path uses, so the
-#                                                    normalizer is testable without constructing a
-#                                                    full pin file and fixture pair for every case)
+#   check-jar-integrity --normalize-digest [last]
+#                                          (reads one blob of hash-command output on stdin, prints
+#                                           the normalized 64-char lowercase hex digest it found,
+#                                           exits 0; exit 1 if none was found. `last` selects the
+#                                           last 64-hex run instead of the first -- see
+#                                           normalize_digest below for why the dispatch below needs
+#                                           that for certutil. This is a debug/test entry point onto
+#                                           the same normalizer the main path uses, so the
+#                                           normalizer is testable without constructing a full pin
+#                                           file and fixture pair for every case.)
 #
 # Pin file format (see ../appian-selenium-api.jar.pin): flat KEY=VALUE lines, only SHA256= is load-
 # bearing here; VERSION= and SIZE= are read for informational stdout only. A size match is never
@@ -50,15 +55,31 @@ set -uo pipefail
 # -hashfile command completed successfully."), possibly with the hex spaced into pairs (some older
 # Windows certutil builds), possibly uppercase, possibly followed by "  <filename>" (sha256sum's own
 # bare output format). Strips every whitespace character first, which reunites hex spaced into
-# pairs into one run and leaves label text broken into short runs by its own non-hex characters (a
-# hex-valid letter run inside a label is never 64 characters long in practice -- see the four
-# constructed fixtures in tests/test_check_jar_integrity.py for the cases this is proven against).
-# Finds the first run of 64-or-more consecutive hex characters and prints its first 64, lowercased.
-# Prints nothing and returns 1 if no such run exists.
+# pairs into one run and leaves label text broken into short runs by its own non-hex characters.
+#
+# Which run to trust depends on whether the tool's own output can carry a *filename* alongside the
+# digest, because a filename is attacker- or path-influenced text, not a label this script wrote --
+# and a content-addressed path (a directory or filename that is itself 64 hex characters, e.g. a
+# cache keyed by digest) makes a filename-shaped hex run indistinguishable from a real one by
+# pattern alone. sha256sum, shasum and openssl are all invoked below with the file piped in on
+# stdin rather than named as an argument, specifically so their output never contains a filename at
+# all -- the first run found is safe by construction. certutil has no stdin mode; it must be given
+# a path, and that path appears in its own label line *before* the real digest. For that one branch
+# this function is called with mode "last": the digest sits between the label line (which may embed
+# an attacker-controlled filename) and the trailing "CertUtil: ... completed successfully." line
+# (which contains no hex run at all), so the last run in the blob is the real digest, not whatever
+# the filename happens to look like.
+#
+# Prints the first 64 hex characters of the selected run, lowercased. Prints nothing and returns 1
+# if no run exists.
 normalize_digest() {
-    local blob run
+    local mode="${1:-first}" blob run
     blob="$(tr -d '[:space:]')"
-    run="$(printf '%s' "$blob" | grep -oE '[0-9a-fA-F]{64,}' | head -n1)"
+    if [ "$mode" = "last" ]; then
+        run="$(printf '%s' "$blob" | grep -oE '[0-9a-fA-F]{64,}' | tail -n1)"
+    else
+        run="$(printf '%s' "$blob" | grep -oE '[0-9a-fA-F]{64,}' | head -n1)"
+    fi
     if [ -z "$run" ]; then
         return 1
     fi
@@ -66,7 +87,7 @@ normalize_digest() {
 }
 
 if [ "${1:-}" = "--normalize-digest" ]; then
-    if digest="$(normalize_digest)"; then
+    if digest="$(normalize_digest "${2:-first}")"; then
         echo "$digest"
         exit 0
     fi
@@ -76,7 +97,7 @@ fi
 
 if [ "$#" -ne 2 ]; then
     echo "usage: check-jar-integrity <file> <pin-file>" >&2
-    echo "       check-jar-integrity --normalize-digest   (reads stdin)" >&2
+    echo "       check-jar-integrity --normalize-digest [last]   (reads stdin)" >&2
     exit 2
 fi
 
@@ -97,7 +118,15 @@ if [ -z "$pinned_sha256_raw" ]; then
     exit 2
 fi
 
-if ! pinned_sha256="$(printf '%s' "$pinned_sha256_raw" | normalize_digest)"; then
+# The pin's own value gets a stricter check than a hash tool's output: it carries no label and no
+# filename to strip out, so once whitespace (including a CRLF line ending, or hex deliberately
+# spaced into pairs) is removed, what's left must be the digest in full -- exactly 64 hex
+# characters, not a longer run silently truncated to its first 64. A pin value with extra
+# characters appended is a malformed pin, not a digest to salvage.
+pinned_sha256_stripped="$(printf '%s' "$pinned_sha256_raw" | tr -d '[:space:]')"
+if printf '%s' "$pinned_sha256_stripped" | grep -qE '^[0-9a-fA-F]{64}$'; then
+    pinned_sha256="$(printf '%s' "$pinned_sha256_stripped" | tr 'A-F' 'a-f')"
+else
     echo "ERROR: pin file $pin_file's SHA256= value is not a recognizable sha256 digest"
     exit 2
 fi
@@ -109,27 +138,45 @@ fi
 
 actual_size="$(wc -c < "$target_file" | tr -d '[:space:]')"
 
-# Absorb the platform variance here, once, instead of teaching a model to pick among these three
-# (plus openssl, not in the original prose, added because it costs nothing extra to try and is
-# widely present) -- this is the twelve lines of dispatch-and-reconcile prose IV-394 exists to
-# remove from SKILL.md.
+# The hash tools tried, in dispatch order -- this is also what
+# tests/test_jar_pin_consistency.py's AC-2 guard reads directly, so SKILL.md's prose staying silent
+# about hash commands is checked against what this script actually tries, not a separately typed
+# list that can drift from it.
+HASH_TOOLS=(sha256sum shasum openssl certutil)
+
+# Absorbs the platform variance here, once, instead of teaching a model to pick among these four or
+# how to reconcile their output formats. sha256sum, shasum and openssl all read the file on stdin
+# (see normalize_digest above for why); certutil has no stdin mode and is given the path as an
+# argument instead. Loops on availability *and* success: a tool that's on PATH but exits non-zero
+# or prints nothing (a broken shim, a permissions problem) falls through to the next candidate
+# instead of being trusted just because `command -v` found it.
 computed_raw=""
-if command -v sha256sum >/dev/null 2>&1; then
-    computed_raw="$(sha256sum "$target_file" 2>/dev/null)"
-elif command -v shasum >/dev/null 2>&1; then
-    computed_raw="$(shasum -a 256 "$target_file" 2>/dev/null)"
-elif command -v openssl >/dev/null 2>&1; then
-    computed_raw="$(openssl dgst -sha256 "$target_file" 2>/dev/null)"
-elif command -v certutil >/dev/null 2>&1; then
-    computed_raw="$(certutil -hashfile "$target_file" SHA256 2>/dev/null)"
-fi
+digest_mode="first"
+for tool in "${HASH_TOOLS[@]}"; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        continue
+    fi
+    digest_mode="first"
+    case "$tool" in
+        sha256sum) computed_raw="$(sha256sum < "$target_file" 2>/dev/null)" ;;
+        shasum) computed_raw="$(shasum -a 256 < "$target_file" 2>/dev/null)" ;;
+        openssl) computed_raw="$(openssl dgst -sha256 < "$target_file" 2>/dev/null)" ;;
+        certutil)
+            computed_raw="$(certutil -hashfile "$target_file" SHA256 2>/dev/null)"
+            digest_mode="last"
+            ;;
+    esac
+    if [ -n "$computed_raw" ]; then
+        break
+    fi
+done
 
 if [ -z "$computed_raw" ]; then
-    echo "ERROR: no sha256 tool found (tried sha256sum, shasum, openssl, certutil)"
+    echo "ERROR: no sha256 tool found (tried ${HASH_TOOLS[*]})"
     exit 2
 fi
 
-if ! computed_sha256="$(printf '%s' "$computed_raw" | normalize_digest)"; then
+if ! computed_sha256="$(printf '%s' "$computed_raw" | normalize_digest "$digest_mode")"; then
     echo "ERROR: could not extract a sha256 digest from the hash tool's output"
     exit 2
 fi

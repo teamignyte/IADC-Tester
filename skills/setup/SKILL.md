@@ -115,13 +115,17 @@ assumes it — this skill doesn't configure or check that connector any more tha
 
 - Do `build.gradle` and `settings.gradle` already exist at the Test repo's root on the Branch? If
   so, leave them alone — don't re-fetch or overwrite anything a maintainer may have hand-edited.
-- Does `lib/appian/appian-selenium-api.jar` exist there, **and does it match the pin file below** —
-  not existence alone. A same-named file that doesn't match is either corrupt (e.g. written through
-  a path that mangled it as text) or left over from an older pin; either way it needs replacing, not
-  skipping.
+- Whether `lib/appian/appian-selenium-api.jar` already exists there is not something this step can
+  settle on its own: the connector exposes only a git blob **SHA-1** and a size here, never the
+  sha256 this skill pins against, so an existing file can't be told apart from one that's corrupt
+  (e.g. written through a path that mangled it as text) or left over from an older pin without
+  downloading and hashing it — which is exactly what the jar bullet below always does.
 
-All three present and matching means a prior run (or a maintainer) already did this — say so and go
-straight to the root-level check below. Otherwise, fill in whatever's missing or mismatched:
+If `build.gradle` and `settings.gradle` were both already present above, leave them alone and move
+straight to the jar bullet below regardless. The jar bullet is never skipped: its download-verify-
+push-verify sequence is safe to repeat against a jar that's already correct, since the push
+overwrites with identical bytes and the verification after it simply confirms what was already
+true.
 
 - **The jar.** `appian-selenium-api.jar` has no Maven artifact — the vendor
   (`gitlab.com/appian-oss/appian-selenium-api`, Apache License 2.0) distributes it only as a
@@ -156,18 +160,23 @@ straight to the root-level check below. Otherwise, fill in whatever's missing or
   Exit `0` means the sha256 matched — continue below. Any other exit is a hard stop, covered next;
   the script's stdout is the reason, show it to the user verbatim rather than restating it. This
   needs a Bash-tool session (Git Bash, WSL, or a native Unix shell) to run — if this session has no
-  Bash tool at all (native Windows without Git Bash), stop here and tell the user Git Bash is
-  required before this check, and this setup, can run; don't fall back to a hash command run by
-  hand.
+  Bash tool at all, stop here and tell the user a working Bash-tool session is required before this
+  check, and this setup, can run; don't fall back to a hash command run by hand. On Windows that gap
+  isn't only "Git Bash isn't installed" — it also covers Git Bash being installed but not
+  discovered (Claude Code's `CLAUDE_CODE_GIT_BASH_PATH` environment variable exists to point it at
+  one that is), which is a real, separate state from not having it at all.
 
   **On a nonzero exit, stop here — the whole run, not just this bullet:** don't push the file,
   don't retry the download, and don't accept a size match as a substitute pass — the script has no
-  code path that would let you. Show the user the script's stdout, then stop: nothing else in this
-  skill runs this session, including the build file below, the root-level `.java` sweep below, and
-  steps 5-9 — pushing `build.gradle`/`settings.gradle` next would leave the Test repo's build
-  pointing at a jar that was never pushed, a worse state than this step never having run at all.
-  Only on exit `0`, push the downloaded file to `lib/appian/appian-selenium-api.jar` in the Test
-  repo, on the Branch, with the GitHub MCP connector's file creation/update tool.
+  code path that would let you. If the script's stdout says no sha256-capable tool was found on this
+  machine, the fix is installing one, not retrying the download or treating it as a mismatch.
+  Otherwise show the user the script's stdout as the reason. Either way,
+  nothing else in this skill runs this session, including the build file below, the root-level
+  `.java` sweep below, and steps 5-9 — pushing `build.gradle`/`settings.gradle` next would leave the
+  Test repo's build pointing at a jar that was never pushed, a worse state than this step never
+  having run at all. Only on exit `0`, push the downloaded file to
+  `lib/appian/appian-selenium-api.jar` in the Test repo, on the Branch, with the GitHub MCP
+  connector's file creation/update tool.
 
   **This is a committed binary, deliberately.** The alternative — a developer downloading it by
   hand, onto a machine-specific path nothing else can see — is the defect IV-368 removes. Committing
@@ -291,7 +300,7 @@ call setup done:
 - **The `.gitignore` line** — added, already present, or declined.
 - **The Test repo's build** — `lib/appian/appian-selenium-api.jar`, `build.gradle` and
   `settings.gradle`: freshly written, already present from an earlier run, or replaced because the
-  jar didn't match the pinned size/hash.
+  jar didn't match the pinned hash.
 - **Root-level `.java` files** — every one found and moved into `src/test/java/autogen/`; any that
   couldn't be removed automatically and still need deleting by hand; and any left in place because
   they didn't match the generated-test signal.
