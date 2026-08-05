@@ -23,11 +23,18 @@ ad hoc.
 .claude-plugin/plugin.json          the manifest
 skills/generate-selenium-tests/     SKILL.md + references/
 skills/setup/                       SKILL.md, config templates, the jar integrity-check script and pin
+tests/                              the guards that hold the two skills to their contracts
 ```
 
 `skills/` is **auto-discovered** — it is deliberately not declared in `plugin.json`. Declaring
 skills or hooks there as well registers the same paths twice, and the plugin then installs
 successfully but loads nothing. `claude plugin validate` does not catch it.
+
+One of those guards ratchets the shell commands written into skill prose:
+`tests/skill_command_baseline.py` records a count per skill file and the suite fails when one
+moves either way. **`tests/test_skill_command_ratchet.py` is a mirror** — `IADC-Advisor` authors
+it, so a fix belongs there first and travels here in the same change. Nothing mechanical binds
+the two copies.
 
 ## The graph dependency
 
