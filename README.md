@@ -39,12 +39,13 @@ the two copies.
 ## The graph dependency
 
 `plugin.json` declares `dependencies: ["iadc-graph"]`, so installing this plugin also installs the
-graph skill, pinned to the sha of the **deployed** graph server. That is not an extra requirement
-imposed on the skill — its own frontmatter already states that it invokes `iadc-graph` before
-pulling SAIL source.
+graph skill. That is not an extra requirement imposed on the skill — its own frontmatter already
+states that it invokes `iadc-graph` before pulling SAIL source.
 
-The dependency is deliberately **unversioned**. It tracks whatever the marketplace entry provides,
-which is the sha pin, so every consumer moves together when that pin moves. See the family's
+The dependency is deliberately **unversioned**, and so is the catalog entry behind it: that entry
+carries no `ref` or `sha`, so an install takes the graph plugin's default-branch tip at install
+time. Every consumer therefore moves together, on that one tip — a refresh of the graph skill
+reaches every new install immediately, with no second gate. See the family's
 [ADR 0003](https://github.com/teamignyte/IADC/blob/main/docs/adr/0003-shared-skills-ship-as-pinned-marketplace-plugins.md)
 and [ADR 0008](https://github.com/teamignyte/IADC/blob/main/docs/adr/0008-tester-ships-as-its-own-plugin-with-a-bundle.md).
 
